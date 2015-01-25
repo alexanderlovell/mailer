@@ -1,0 +1,9 @@
+{
+  "name": "haraka_local",
+  "description": "An SMTP Server",
+  "version": "0.0.1",
+  "dependencies": {
+    "nats": "^0.2.9",
+    "rethinkdb": "^1.15.0"
+  }
+}
