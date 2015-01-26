@@ -1,0 +1,4 @@
+rewrite_header Subject *****SPAM*****
+required_score 6.5
+use_bayes 1
+bayes_auto_learn 1
