@@ -14,7 +14,6 @@ dnsbl
 
 # Check mail headers are valid
 data.headers
-# data.redis
 
 # block mail from some known bad HELOs - see config/helo.checks.ini for configuration
 helo.checks
@@ -32,6 +31,8 @@ max_unrecognized_commands
 # NOTE: THIS IS REQUIRED for inbound email.
 rcpt.in_host_list
 rcpt.user_exists
+
+queue.rethinkdb
 
 # Queue mail via smtp - see config/smtp_forward.ini for where your mail goes
 ## TODO
