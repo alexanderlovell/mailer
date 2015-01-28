@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "dependencies": {
     "nats": "^0.2.9",
-    "rethinkdb": "^1.15.0"
+    "rethinkdb": "^1.15.0",
+    "tmp": "0.0.24"
   }
 }
