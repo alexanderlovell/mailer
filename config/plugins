@@ -14,6 +14,7 @@ dnsbl
 
 # Check mail headers are valid
 data.headers
+data.lavaboom
 
 # block mail from some known bad HELOs - see config/helo.checks.ini for configuration
 helo.checks
@@ -30,7 +31,7 @@ max_unrecognized_commands
 # Only accept mail for your personal list of hosts. Edit config/host_list
 # NOTE: THIS IS REQUIRED for inbound email.
 rcpt.in_host_list
-rcpt.user_exists
+rcpt.address_exists
 
 queue.rethinkdb
 
