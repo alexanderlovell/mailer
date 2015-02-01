@@ -55,6 +55,7 @@ exports.hook_queue = function(next, connection) {
 							from:         from,
 							to:           to,
 							cc:           cc,
+							headers:      connection.transaction.body.header.get_all(),
 							// attachments:  [],
 							body: {
 								encoding:         "json",
