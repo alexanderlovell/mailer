@@ -18,7 +18,7 @@ exports.hook_rcpt = function(next, connection, params) {
 	}
 
 	// Check if we have user in database
-	var username = rcpt.user.toLowerCase();
+	var username = rcpt.user.toLowerCase().replace(".", "");
 
 	// [Try to] fetch account from database
 	r.table("accounts")

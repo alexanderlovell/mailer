@@ -1,8 +1,21 @@
 var openpgp = require("openpgp");
 var r = require("rethinkdb");
-var randomstring = require("randomstring");
+var crypto = require("crypto");
 
 var prefixes = /([\[\(] *)?(RE?S?|FYI|RIF|I|FS|VB|RV|ENC|ODP|PD|YNT|ILT|SV|VS|VL|AW|WG|ΑΠ|ΣΧΕΤ|ΠΡΘ|תגובה|הועבר|主题|转发|FWD?) *([-:;)\]][ :;\])-]*|$)|\]+ *$/
+
+var charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz";
+function randomstring(length) {
+	var buffer = crypto.randomBytes(length);
+	var result = "";
+	var clength = charset.length - 1;
+
+	for (var i = 0; i < length; i++) {
+		result += charset[Math.floor(buffer.readUInt8(i)/255*clength+0.5)]
+	}
+
+	return result
+}
 
 exports.hook_queue = function(next, connection) {
 	var that = this;
@@ -35,7 +48,7 @@ exports.hook_queue = function(next, connection) {
 					var subject = connection.transaction.body.header.get("subject").trim();
 					var threadSubject = subject.replace(prefixes, "");
 
-					var emailID = randomstring.generate(20);
+					var emailID = randomstring(20);
 					var from = connection.transaction.body.header.get("from").split(",");
 					var to = connection.transaction.body.header.get("to").split(",");
 					var cc = connection.transaction.body.header.get("cc").split(",");
@@ -78,7 +91,7 @@ exports.hook_queue = function(next, connection) {
 
 					var createThread = function() {
 						var thread = {
-							id:           randomstring.generate(20),
+							id:           randomstring(20),
 							date_created: r.now(),
 							name:         threadSubject,
 							owner:        connection.notes.user.id,

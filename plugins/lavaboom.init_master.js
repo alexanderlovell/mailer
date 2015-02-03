@@ -41,7 +41,7 @@ exports.hook_init_master = function(next, server) {
 	}
 
 	if (process.env.NATS_PORT_4222_TCP_ADDR) {
-		settings.nats_address = process.env.NATS_PORT_4222_TCP_ADDR;
+		settings.nats_address = "nats://" + process.env.NATS_PORT_4222_TCP_ADDR + ":4222";
 	}
 
 	if (process.env.HOSTNAMES) {
