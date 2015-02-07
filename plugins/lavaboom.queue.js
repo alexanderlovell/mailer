@@ -1,130 +1,206 @@
-var openpgp = require("openpgp");
-var r = require("rethinkdb");
-var crypto = require("crypto");
+let bluebird = require("bluebird");
+let openpgp = require("openpgp");
+let r = require("rethinkdbdash");
 
-var prefixes = /([\[\(] *)?(RE?S?|FYI|RIF|I|FS|VB|RV|ENC|ODP|PD|YNT|ILT|SV|VS|VL|AW|WG|ΑΠ|ΣΧΕΤ|ΠΡΘ|תגובה|הועבר|主题|转发|FWD?) *([-:;)\]][ :;\])-]*|$)|\]+ *$/
-
-var charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz";
-function randomstring(length) {
-	var buffer = crypto.randomBytes(length);
-	var result = "";
-	var clength = charset.length - 1;
-
-	for (var i = 0; i < length; i++) {
-		result += charset[Math.floor(buffer.readUInt8(i)/255*clength+0.5)]
-	}
-
-	return result
-}
+let randomString = require("./util.randomstring").randomString;
+let stripPrefixes = require("./util.stripprefixes").stripPrefixes;
 
 exports.hook_queue = function(next, connection) {
-	var that = this;
+	let self = this;
 
-	// Parse the key (we are 100% sure it's valid)
-	var key = openpgp.key.readArmored(connection.notes.key.key);
+	self.logdebug("Initializing a coroutine");
 
-	that.logdebug(connection.transaction.body);
+	bluebird.coroutine(function *() {
+		try {
+			// Get the RethinkDB pool
+			let r = connection.server.notes.rethinkdb;
 
-	// Encrypt the message
-	openpgp.encryptMessage(key.keys, connection.transaction.body.bodytext)
-		.then(function(message) {
-			that.logdebug("Encrypted the email");
+			// Debug information
+			self.logdebug(connection.transaction.body);
 
-			r.table("labels").filter({
+			// Parse the key (we are 100% sure it's valid)
+			let key = openpgp.key.readArmored(connection.notes.key.key);
+
+			// Get the Content-Type
+			let contentType = connection.transaction.body.header.get("content-type");
+			
+			// Function scope lets
+			let bodyType;
+			let bodyText;
+			let attachments = [];
+
+			if (contentType.indexOf("multipart") === -1) {
+				// Single-part email means that Haraka parsed it into bodytext
+				bodyText = connection.transaction.body.bodytext;
+
+				// Determine if it's HTML
+				if (contentType.indexOf("text/html") !== -1) {
+					bodyType = "html";
+				} else {
+					bodyType = "text";
+				}
+			} else {
+				// Multipart - welcome to the infinite possiblities of SMTP
+				let parts = contentType.split(";")[0].split("/")
+
+				switch (parts[0]) {
+					case "digest":
+						// multipart/digest
+						break;
+					case "message":
+						// multipart/message
+						break;
+					case "alternative":
+						// multipart/alternative
+						break;
+					case "related":
+						// multipart/related
+						break;
+					case "report":
+						// multipart/report
+						break;
+					case "signed":
+						// multipart-signed
+						break;
+					case "encrypted":
+						// multipart/encrypted
+						break;
+					case "form-data":
+						// multipart/form-data
+						break;
+					case "byterange":
+						// multipart/byterange
+						break;
+					default:
+						// multipart/mixed
+						break;
+				}
+			}
+
+			self.logdebug("Parsed the email");
+
+			// Encrypt the message
+			let encryptedBody = yield openpgp.encryptMessage(key.keys, bodyText);
+
+			self.logdebug("Encrypted the body");
+
+			// Encrypt the attachments
+			let encryptedAttachments = [];
+			for (let i = 0; i < attachments.length; i++) {
+				let attachment = encryptedAttachments[i];
+				
+				let encryptedBody = yield openpgp.encryptMessage(key.keys, attachment.body);
+
+				encryptedAttachments.push({
+					body: encryptedBody,
+					name: attachment.name,
+					type: attachment.type
+				});
+			}
+
+			// Fetch the inbox of the user receiving
+			let inbox = yield r.table("labels").filter({
 				"owner":   connection.notes.user.id,
 				"name":    "Inbox",
 				"builtin": true,
-			}).run(connection.server.notes.rethinkdb).then(function(cursor) {
-					// Convert into an array
-					return cursor.toArray();
-				}).then(function(inbox) {
-					if (inbox.length != 1) {
-						that.logerror("User has no inbox: " + connection.notes.user.name);
-						return next(DENY, "Unable to queue the email");
-					}
+			}).run()
 
-					that.logdebug("Fetched inbox: " + inbox[0].id);
+			if (inbox.length != 1) {
+				self.logerror("User has no inbox: " + connection.notes.user.name);
+				return next(DENY, "Unable to queue the email");
+			}
 
-					var subject = connection.transaction.body.header.get("subject").trim();
-					var threadSubject = subject.replace(prefixes, "");
+			self.logdebug("Fetched inbox: " + inbox[0].id);
 
-					var emailID = randomstring(20);
-					var from = connection.transaction.body.header.get("from").split(",");
-					var to = connection.transaction.body.header.get("to").split(",");
-					var cc = connection.transaction.body.header.get("cc").split(",");
+			// Get the subject
+			let subject = connection.transaction.body.header.get("subject").trim();
+			let threadSubject = stripPrefixes(subject);
 
-					if (cc[0] === "") {
-						cc = [];
-					}
+			// Generate the email ID early enough
+			let emailID = randomString(20);
 
-					var sendEmail = function(thread) {
-						// message is an encrypted body armor at this point
-						r.table("emails").insert({
-							id:           emailID,
-							date_created: r.now(),
-							name:         subject,
-							owner:        connection.notes.user.id,
-							kind:         "received",
-							from:         from,
-							to:           to,
-							cc:           cc,
-							headers:      connection.transaction.body.header.lines(),
-							// attachments:  [],
-							body: {
-								encoding:         "json",
-								pgp_fingerprints: [connection.notes.key.id],
-								data:             message,
-								schema:           "email",
-								version_major:    1,
-								version_minor:    0,
-							},
-							thread:       thread,
-							status:       "received",
-							is_read:      false,
-						}).run(connection.server.notes.rethinkdb).then(function() {
-							return next(OK);
-						}).error(function(error) {
-							that.logerror("Unable to create a new email: " + error);
-							return next(DENY, "Unable to queue the email");
-						});
-					}
+			// Prepare from, to and cc
+			let from = connection.transaction.body.header.get("from").split(",");
+			for (let i = 0; i < from.length; i++) {
+				from[i] = from[i].trim();
+			}
 
-					var createThread = function() {
-						var thread = {
-							id:           randomstring(20),
-							date_created: r.now(),
-							name:         threadSubject,
-							owner:        connection.notes.user.id,
-							emails:       [emailID],
-							labels:       [inbox[0].id],
-							members:      from.concat(to).concat(cc),
-							is_read:      false,
-						};
-						r.table("threads").insert(thread).run(connection.server.notes.rethinkdb).then(function() {
-							return sendEmail(thread.id);
-						}).error(function(error) {
-							that.logerror("Unable to create a new thread: " + error);
-							return next(DENY, "Unable to queue the email");
-						});
-					}
+			let to = connection.transaction.body.header.get("to").split(",");
+			for (let i = 0; i < to.length; i++) {
+				to[i] = to[i].trim();
 
-					r.table("threads").getAll(threadSubject, {index: "name"}).run(connection.server.notes.rethinkdb).then(function(cursor) {
-						return cursor.toArray();
-					}).then(function(result) {
-						if (result.length > 0) {
-							return sendEmail(result[0].id);
-						} else {
-							return createThread();
-						}
-					}).error(function(error) {
-						return createThread();
-					});
-				}).error(function(error) {
-					that.logerror("Error occured while fetching user's inbox ID: " + error);
-					return next(DENY, "Unable to queue the email");
-				});
-		}).catch(function(error) {
-			that.logerror("Errored while queueing an email: " + error);
+				if (to[i] == "<>") {
+					to[i] = connection.notes.to;
+				}
+			}
+
+			let cc = connection.transaction.body.header.get("cc").split(",");
+			for (let i = 0; i < cc.length; i++) {
+				cc[i] = cc[i].trim();
+			}
+
+			if (cc[0] === "") {
+				cc = [];
+			}
+
+			// Trim the headers
+			let headers = connection.transaction.body.header.lines();
+			for (let i = 0; i < headers.length; i++) {
+				headers[i] = headers[i].trim();
+			}
+
+			// Prepare thread scope
+			let thread;
+
+			// Try to find the thread by name
+			let threadList = yield r.table("threads").getAll(threadSubject, {index: "name"}).run();
+			if (threadList.length === 0) {
+				thread = {
+					id:            randomString(20),
+					date_created:  r.now(),
+					date_modified: r.now(),
+					name:          threadSubject,
+					owner:         connection.notes.user.id,
+					emails:        [emailID],
+					labels:        [inbox[0].id],
+					members:       from.concat(to).concat(cc),
+					is_read:       false,
+				};
+				yield r.table("threads").insert(thread).run();
+			} else {
+				thread = result[0];
+				yield r.table("threads").get(thread.id).update({date_modified: r.now()}).run()
+			}
+
+			yield r.table("emails").insert({
+				id:            emailID,
+				date_created:  r.now(),
+				date_modified: r.now(),
+				name:          subject,
+				owner:         connection.notes.user.id,
+				kind:          "received",
+				from:          from,
+				to:            to,
+				cc:            cc,
+				headers:       headers,
+				// attachments:  [],
+				body: {
+					encoding:         "json",
+					pgp_fingerprints: [connection.notes.key.id],
+					data:             message,
+					schema:           "email",
+					version_major:    1,
+					version_minor:    0,
+				},
+				thread:       thread,
+				status:       "received",
+				is_read:      false,
+			})
+
+			return next(OK);
+		} catch (error) {
+			self.logerror("Unable to queue an email: " + error);
 			return next(DENY, "Unable to queue the email");
-		});
+		}
+	})();
 }

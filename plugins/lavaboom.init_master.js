@@ -1,4 +1,4 @@
-var r = require('rethinkdb');
+var rethinkdb = require('rethinkdbdash');
 var nats = require('nats');
 
 exports.hook_init_master = function(next, server) {
@@ -60,43 +60,36 @@ exports.hook_init_master = function(next, server) {
 	that.logdebug("Resolved all settings");
 
 	// Connect to rethinkdb
-	r.connect({
+	let pool = rethinkdb({
 		host:    settings.rethinkdb_address,
 		port:    settings.rethinkdb_port,
 		authKey: settings.rethinkdb_key,
 		db:      settings.rethinkdb_db
-	}, function(err, conn) {
-		// We cannot connect to the database, something happened.
-		if (err) {
-			that.logdebug("Could not connect to the database");
-			that.logdebug("    " + err.message);
-			process.exit(1);
-		}
-
-		// Push the connection into notes
-		server.notes.rethinkdb = conn;
-
-		// Notify that we're connected
-		that.logdebug("Connected to RethinkDB");
-
-		// Connect to NATS
-		var queue = nats.connect({
-			url: settings.nats_address
-		});
-
-		// Something might've gone wrong. I'm not sure how'd that work.
-		if (!queue) {
-			that.logdebug("Connecting to NATS failed");
-			process.exit(1);
-		}
-
-		// Push the queue into notes
-		server.notes.nats = queue;
-
-		// Notify the user
-		that.logdebug("Connected to NATS");
-
-		// Execute the next handler
-		return next();
 	});
+
+	// Push the connection into notes
+	server.notes.rethinkdb = pool;
+
+	// Notify that we're connected
+	that.logdebug("Connected to RethinkDB");
+
+	// Connect to NATS
+	var queue = nats.connect({
+		url: settings.nats_address
+	});
+
+	// Something might've gone wrong. I'm not sure how'd that work.
+	if (!queue) {
+		that.logdebug("Connecting to NATS failed");
+		process.exit(1);
+	}
+
+	// Push the queue into notes
+	server.notes.nats = queue;
+
+	// Notify the user
+	that.logdebug("Connected to NATS");
+
+	// Execute the next handler
+	return next();
 };

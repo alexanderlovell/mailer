@@ -1,5 +1,5 @@
 var outbound = require("./outbound");
-var r = require("rethinkdb");
+var r = require("rethinkdbdash");
 
 exports.hook_init_master = function(next, server) {
 	var that = this;
