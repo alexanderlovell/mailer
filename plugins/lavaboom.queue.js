@@ -168,7 +168,7 @@ exports.hook_queue = function(next, connection) {
 				};
 				yield r.table("threads").insert(thread).run();
 			} else {
-				thread = result[0];
+				thread = threadList[0];
 				yield r.table("threads").get(thread.id).update({date_modified: r.now()}).run()
 			}
 
