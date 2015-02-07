@@ -44,14 +44,82 @@ exports.hook_queue = function(next, connection) {
 				let parts = contentType.split(";")[0].split("/")
 
 				switch (parts[0]) {
-					case "digest":
-						// multipart/digest
-						break;
-					case "message":
-						// multipart/message
-						break;
+					/*case "digest":
+						// # multipart/digest
+						// Merge everything into a single body
+
+						// Treat is as a mixed now.
+						break;*/
 					case "alternative":
 						// multipart/alternative
+
+						// Find text/html first
+						let foundIndex = -1;
+						let foundHTML = false;
+
+						for (let i = 0; i < connection.transaction.body.children.length; i++) {
+							let child = connection.transaction.body.children[i];
+
+							if (child.header.get("content-type").indexOf("text/html") !== -1) {
+								foundIndex = i;
+								foundHTML = true;
+								break;
+							}
+						}
+
+						// Did we find the HTML part?
+						if (foundHTML) {
+							bodyType = "html";
+							bodyText = connection.transaction.body.children[foundIndex].bodytext;
+						} else {
+							let foundPlain = false;
+
+							// Find text/plain
+							for (let i = 0; i < connection.transaction.body.children.length; i++) {
+								let child = connection.transaction.body.children[i];
+
+								if (child.header.get("content-type").indexOf("text/plain") !== -1) {
+									foundIndex = i;
+									foundPlain = true;
+									break;
+								}
+							}
+
+							// Did we find the plain part?
+							if (foundPlain) {
+								bodyType = "text";
+								bodyText = connection.transaction.body.children[foundIndex].bodytext;
+							} else {
+								bodyType = "text";
+								bodyText = "Email contains no text body";
+							}
+						}
+
+						// Splice the child
+						if (foundIndex !== -1) {
+							connection.transaction.body.children.splice(foundIndex, 1);
+						}
+
+						// Treat the rest as attachments
+						for (let i = 0; i < connection.transaction.body.children.length; i++) {
+							let child = connection.transaction.body.children[i];
+
+							// Determine the name
+							let name;
+							let contentDisposition = child.header.get("Content-Disposition");
+							if (contentDisposition.indexOf("filename=\"") !== -1) {
+								name = contentDisposition.split("filename=\"")[1].slice(0, -1);
+							} else {
+								name = "multipart" + i.toString();
+							}
+
+							attachments.push({
+								body: child.bodytext;
+								name: name,
+								type: child.header.get("Content-Type")
+							});
+						}
+
 						break;
 					case "related":
 						// multipart/related
@@ -60,18 +128,17 @@ exports.hook_queue = function(next, connection) {
 						// multipart/report
 						break;
 					case "signed":
-						// multipart-signed
+						// multipart/signed
 						break;
 					case "encrypted":
 						// multipart/encrypted
 						break;
-					case "form-data":
-						// multipart/form-data
-						break;
-					case "byterange":
-						// multipart/byterange
-						break;
 					default:
+						for (let i = 0; i < connection.transaction.body.children.length; i++) {
+							// Child #1
+							let child = connection.transaction.body.children[i];
+						}
+
 						// multipart/mixed
 						break;
 				}
