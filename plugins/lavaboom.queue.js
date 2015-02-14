@@ -1,6 +1,5 @@
 let bluebird = require("bluebird");
 let openpgp = require("openpgp");
-let r = require("rethinkdbdash");
 
 let randomString = require("./util.randomstring").randomString;
 let stripPrefixes = require("./util.stripprefixes").stripPrefixes;
