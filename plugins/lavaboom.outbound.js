@@ -1,3 +1,5 @@
+/* jshint esnext: true */
+
 let bluebird = require("bluebird");
 let openpgp  = require("openpgp");
 let mimelib  = require("mimelib");
@@ -45,14 +47,16 @@ To: <%= to.join(", ") %><% if (cc.length != 0) { %>
 Cc: <%= cc.join(", ") %><% } %>
 MIME-Version: 1.0
 Content-Type: <%= content_type %>
-Subject: <%= subject %>
+Subject: <%= subject %><% if (reply_to) { %>
+Reply-To: <%= reply_to %><% } %>
 
 <%= body %>
 `);
-let singleManifestTemplate = _.template(`From: <%= from %>
+let manifestSingleTemplate = _.template(`From: <%= from %>
 To: <%= to.join(", ") %><% if (cc.length != 0) { %>
 Cc: <%= cc.join(", ") %><% } %>
-Subject: <%= subject %>
+Subject: <%= subject %><% if (reply_to) { %>
+Reply-To: <%= reply_to %><% } %>
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="<%= boundary1 %>"
 
@@ -89,7 +93,7 @@ Content-Disposition: attachment; filename="manifest.pgp"
 <%= manifest %>
 --<%= boundary1 %>--
 `);
-let multiManifestTemplate = _.template(`From: <%= from %>
+let manifestMultiTemplate = _.template(`From: <%= from %>
 To: <%= to.join(", ") %><% if (cc.length != 0) { %>
 Cc: <%= cc.join(", ") %><% } %>
 Subject: <%= subject %><% if (reply_to) { %>
@@ -166,7 +170,7 @@ exports.hook_init_master = function(next, server) {
 				// Determine the kind
 				if (email.kind === "raw") {
 					// Generate the email
-					if (files.length == 0) {
+					if (!files.length || files.length === 0) {
 						contents = rawSingleTemplate({
 							"from":     email.from,
 							"to":       email.to,
@@ -202,7 +206,7 @@ exports.hook_init_master = function(next, server) {
 						key = yield r.table("keys").get(accountResult[0].public_key).run();
 					} else {
 						let keys = yield r.table("keys").getAll(accountResult[0].id, {index: "owner"}).run();
-						if (keys.length == 0) {
+						if (!keys.length || keys.length === 0) {
 							throw "No user keys";
 						}
 						key = keys[0];
@@ -216,7 +220,7 @@ exports.hook_init_master = function(next, server) {
 							"from":    email.from,
 							"to":      email.to.join(", "),
 							"subject": email.subject,
-						}
+						},
 						"subject": email.subject,
 						"parts":   []
 					};
@@ -285,13 +289,49 @@ exports.hook_init_master = function(next, server) {
 						"status":   "processed",
 					});
 				} else if (email.kind === "pgpmime") {
-
+					contents = pgpTemplate({
+						"from":         email.from,
+						"to":           email.to,
+						"cc":           email.cc,
+						"reply_to":     email.reply_to,
+						"content_type": email.content_type,
+						"subject":      mimelib.encodeMimeWord(email.subject),
+						"body":         email.body,
+					});
 				} else if (email.kind === "manifest") {
-
+					if (!files.length || files.length === 0) {
+						contents = manifestSingleTemplate({
+							"from":      email.from,
+							"to":        email.to,
+							"cc":        email.cc,
+							"subject":   mimelib.encodeMimeWord(email.subject),
+							"reply_to":  email.reply_to,
+							"boundary1": randomString(16),
+							"boundary2": randomString(16),
+							"body":      email.body,
+							"id":        email.id,
+							"manifest":  email.manifest,
+						});
+					} else {
+						contents = manifestMultiTemplate({
+							"from":      email.from,
+							"to":        email.to,
+							"cc":        email.cc,
+							"subject":   mimelib.encodeMimeWord(email.subject),
+							"reply_to":  email.reply_to,
+							"boundary1": randomString(16),
+							"boundary2": randomString(16),
+							"body":      email.body,
+							"id":        email.id,
+							"files":     files,
+							"manifest":  manifest,
+						});
+					}
 				}
 
 				for (let addr of email.to) {
 					outbound.send_email(email.from, addr, contents, function(code, message) {
+						self.logdebug("To outbound callback");
 						self.logdebug(code);
 						self.logdebug(message);
 					});
@@ -299,6 +339,7 @@ exports.hook_init_master = function(next, server) {
 
 				for (let addr of email.cc) {
 					outbound.send_email(email.from, addr, contents, function(code, message) {
+						self.logdebug("CC outbound callback");
 						self.logdebug(code);
 						self.logdebug(message);
 					});
@@ -312,7 +353,7 @@ exports.hook_init_master = function(next, server) {
 	});
 
 	next();
-}
+};
 
-exports.hook_queue_outbound = function(next) { this.logdebug("pls1"); next(CONT); }
-exports.hook_send_email = function(next, hmail) { this.logdebug(hmail); this.logdebug("pls2"); next(OK); }
+exports.hook_queue_outbound = function(next) { this.logdebug("pls1"); next(CONT); };
+exports.hook_send_email = function(next, hmail) { this.logdebug(hmail); this.logdebug("pls2"); next(OK); };
