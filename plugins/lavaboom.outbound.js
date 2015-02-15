@@ -36,10 +36,10 @@ Content-Transfer-Encoding: quoted-printable
 --<%= boundary1 %>
 Content-Type: <%= file.encoding %>
 Content-Transfer-Encoding: base64
-Content-Disposition: attachment; filename="<% file.name %>"
+Content-Disposition: attachment; filename="<%= file.name %>"
 
 <%= file.body %>
-<% } %>
+<% }); %>
 --<%= boundary1 %>--
 `);
 let pgpTemplate = _.template(`From: <%= from %>
@@ -129,10 +129,10 @@ https://view.lavaboom.com/#<%= id %>
 --<%= boundary2 %>--<% _.forEach(files, function(file) { %>
 --<%= boundary1 %>
 Content-Type: application/octet-stream
-Content-Disposition: attachment; filename="<% file.name %>"
+Content-Disposition: attachment; filename="<%= file.name %>"
 
 <%= file.body %>
-<% } %>
+<% }); %>
 --<%= boundary1 %>
 Content-Type: application/x-pgp-manifest+json
 Content-Disposition: attachment; filename="manifest.pgp"
@@ -170,7 +170,7 @@ exports.hook_init_master = function(next, server) {
 				// Determine the kind
 				if (email.kind === "raw") {
 					// Generate the email
-					if (!files.length || files.length === 0) {
+					if (!files || files.length === 0) {
 						contents = rawSingleTemplate({
 							"from":     email.from,
 							"to":       email.to,
@@ -206,7 +206,7 @@ exports.hook_init_master = function(next, server) {
 						key = yield r.table("keys").get(accountResult[0].public_key).run();
 					} else {
 						let keys = yield r.table("keys").getAll(accountResult[0].id, {index: "owner"}).run();
-						if (!keys.length || keys.length === 0) {
+						if (!keys || keys.length === 0) {
 							throw "No user keys";
 						}
 						key = keys[0];
@@ -299,7 +299,7 @@ exports.hook_init_master = function(next, server) {
 						"body":         email.body,
 					});
 				} else if (email.kind === "manifest") {
-					if (!files.length || files.length === 0) {
+					if (!files || files.length === 0) {
 						contents = manifestSingleTemplate({
 							"from":      email.from,
 							"to":        email.to,

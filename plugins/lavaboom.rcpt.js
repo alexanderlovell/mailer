@@ -1,3 +1,5 @@
+/* jshint esnext: true */
+
 let bluebird = require("bluebird");
 
 exports.hook_rcpt = function(next, connection, params) {
@@ -16,7 +18,7 @@ exports.hook_rcpt = function(next, connection, params) {
 			}
 
 			// Put the rcpt email into notes
-			connection.notes.to = rcpt.user + "@" + rcpt.host
+			connection.notes.to = rcpt.user + "@" + rcpt.host;
 
 			// Fetch the hostname
 			let hostname = rcpt.host.toLowerCase();
@@ -30,9 +32,9 @@ exports.hook_rcpt = function(next, connection, params) {
 			let username = rcpt.user.toLowerCase().replace(".", "");
 
 			// [Try to] fetch account from database
-			let result = yield r.table("accounts").getAll(username, {index: "name"}).run()
+			let result = yield r.table("accounts").getAll(username, {index: "name"}).run();
 
-			if (result.length != 1) {
+			if (result.length !== 1) {
 				self.logdebug("User not found: " + username);
 				return next(DENY, "Unable to resolve this email");
 			}
@@ -51,7 +53,7 @@ exports.hook_rcpt = function(next, connection, params) {
 				keys = yield r.table("keys").getAll(result[0].id, {index: "owner"}).run();
 			}
 
-			if (keys.length == 0) {
+			if (!keys || keys.length === 0) {
 				self.logdebug("No keys found for user " + username);
 				return next(DENY, "User's account is not set up");
 			}

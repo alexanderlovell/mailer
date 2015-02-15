@@ -1,3 +1,5 @@
+/* jshint esnext: true */
+
 let bluebird = require("bluebird");
 let openpgp = require("openpgp");
 
@@ -40,7 +42,7 @@ exports.hook_queue = function(next, connection) {
 				}
 			} else {
 				// Multipart - welcome to the infinite possiblities of SMTP
-				let parts = contentType.split(";")[0].split("/")
+				let parts = contentType.split(";")[0].split("/");
 
 				switch (parts[0]) {
 					/*case "digest":
@@ -113,7 +115,7 @@ exports.hook_queue = function(next, connection) {
 							}
 
 							attachments.push({
-								body: child.bodytext;
+								body: child.bodytext,
 								name: name,
 								type: child.header.get("Content-Type")
 							});
@@ -169,7 +171,7 @@ exports.hook_queue = function(next, connection) {
 				"owner":   connection.notes.user.id,
 				"name":    "Inbox",
 				"builtin": true,
-			}).run()
+			}).run();
 
 			if (inbox.length != 1) {
 				self.logerror("User has no inbox: " + connection.notes.user.name);
@@ -220,7 +222,7 @@ exports.hook_queue = function(next, connection) {
 
 			// Try to find the thread by name
 			let threadList = yield r.table("threads").getAll(threadSubject, {index: "name"}).run();
-			if (threadList.length === 0) {
+			if (!threadList || threadList.length === 0) {
 				thread = {
 					id:            randomString(20),
 					date_created:  r.now(),
@@ -235,7 +237,7 @@ exports.hook_queue = function(next, connection) {
 				yield r.table("threads").insert(thread).run();
 			} else {
 				thread = threadList[0];
-				yield r.table("threads").get(thread.id).update({date_modified: r.now()}).run()
+				yield r.table("threads").get(thread.id).update({date_modified: r.now()}).run();
 			}
 
 			yield r.table("emails").insert({
@@ -261,7 +263,7 @@ exports.hook_queue = function(next, connection) {
 				thread:       thread,
 				status:       "received",
 				is_read:      false,
-			})
+			});
 
 			return next(OK);
 		} catch (error) {
@@ -269,4 +271,4 @@ exports.hook_queue = function(next, connection) {
 			return next(DENY, "Unable to queue the email");
 		}
 	})();
-}
+};

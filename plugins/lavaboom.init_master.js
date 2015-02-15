@@ -1,3 +1,5 @@
+/* jshint esnext: true */
+
 var rethinkdb = require('rethinkdbdash');
 var nats = require('nats');
 
