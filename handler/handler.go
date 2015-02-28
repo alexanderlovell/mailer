@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"mime"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/blang/semver"
 	"github.com/dancannon/gorethink"
 	"github.com/dchest/uniuri"
 	"github.com/lavab/api/models"
@@ -174,10 +176,11 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 
 		// Declare variables used later for data insertion
 		var (
+			subject  string
 			manifest string
 			body     string
-			fileIDs  map[string][]string
-			files    []*models.File
+			fileIDs  = map[string][]string{}
+			files    = []*models.File{}
 		)
 
 		// Transform raw emails into encrypted with manifests
@@ -188,7 +191,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			// Parsing vars
 			var (
 				bodyType string
-				bodyText []byte
+				bodyText string
 			)
 
 			// Flatten the email
@@ -219,7 +222,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 
 					// Push contents into the parser's scope
 					bodyType = mediaType
-					bodyText = match.Body
+					bodyText = string(match.Body)
 
 					/* change of plans - discard them.
 					// Transform rest of the types into attachments
@@ -243,6 +246,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 
 					// Not multipart, parse the disposition
 					disposition, dparams, err := mime.ParseMediaType(msg.Headers.Get("Content-Disposition"))
+
 					if err == nil && disposition == "attachment" {
 						// We're dealing with an attachment
 						id := uniuri.NewLen(uniuri.UUIDLen)
@@ -263,6 +267,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 							ID:          id,
 							ContentType: mediaType,
 							Filename:    dparams["filename"],
+							Size:        len(msg.Body),
 						})
 
 						for _, account := range accounts {
@@ -290,17 +295,216 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 						}
 					} else {
 						// Header is either corrupted or we're dealing with inline
+						if bodyType == "" && mediaType == "text/plain" || mediaType == "text/html" {
+							bodyType = mediaType
+							bodyText = string(msg.Body)
+						} else if bodyType == "" {
+							bodyType = "text/html"
 
+							if strings.Index(mediaType, "image/") == 0 {
+								bodyText = `<img src="data:` + mediaType + `;base64,` + base64.StdEncoding.EncodeToString(msg.Body) + `"><br>`
+							} else {
+								bodyText = "<pre>" + string(msg.Body) + "</pre>"
+							}
+						} else if mediaType == "text/plain" {
+							if bodyType == "text/plain" {
+								bodyText += "\n\n" + string(msg.Body)
+							} else {
+								bodyText += "\n\n<pre>" + string(msg.Body) + "</pre>"
+							}
+						} else if mediaType == "text/html" {
+							if bodyType == "text/plain" {
+								bodyType = "text/html"
+								bodyText = "<pre>" + bodyText + "</pre>\n\n" + string(msg.Body)
+							} else {
+								bodyText += "\n\n" + string(msg.Body)
+							}
+						} else {
+							if bodyType != "text/html" {
+								bodyType = "text/html"
+								bodyText = "<pre>" + bodyText + "</pre>"
+							}
+
+							// Put images as HTML tags
+							if strings.Index(mediaType, "image/") == 0 {
+								bodyText = "\n\n<img src=\"data:" + mediaType + ";base64," + base64.StdEncoding.EncodeToString(msg.Body) + "\"><br>"
+							} else {
+								bodyText = "\n\n<pre>" + string(msg.Body) + "</pre>"
+							}
+						}
 					}
-
 				}
 
 				return nil
 			}
+
+			// Parse the email
+			parseBody(email)
+
+			// Trim the body text
+			bodyText = strings.TrimSpace(bodyText)
+
+			// Hash the body
+			bodyHash := sha256.Sum256([]byte(bodyText))
+
+			// Append body to the parts
+			parts = append(parts, &man.Part{
+				Hash:        hex.EncodeToString(bodyHash[:]),
+				ID:          "body",
+				ContentType: bodyType,
+				Size:        len(bodyText),
+			})
+
+			// Debug info
+			log.Debug("Finished parsing the email")
+
+			// Push files into RethinkDB
+			for _, file := range files {
+				_, err := gorethink.Db(config.RethinkDatabase).Table("files").Insert(file).Run(session)
+				if err != nil {
+					return err
+				}
+			}
+
+			// Generate the from, to and cc addresses
+			from, err := email.Headers.AddressList("from")
+			if err != nil {
+				return err
+			}
+			to, err := email.Headers.AddressList("from")
+			if err != nil {
+				return err
+			}
+			cc, err := email.Headers.AddressList("from")
+			if err != nil {
+				return err
+			}
+
+			// Generate the manifest
+			emailID := uniuri.NewLen(uniuri.UUIDLen)
+			subject = "Encrypted message (" + emailID + ")"
+			rawManifest := &man.Manifest{
+				Version: semver.Version{1, 0, 0, nil, nil},
+				From:    from[0],
+				To:      to,
+				CC:      cc,
+				Subject: email.Headers.Get("subject"),
+				Parts:   parts,
+			}
+
+			// Encrypt the manifest and the body
+			encryptedBody, err := encryptAndArmor([]byte(bodyText), toKeyring)
+			if err != nil {
+				return err
+			}
+			strManifest, err := man.Write(rawManifest)
+			if err != nil {
+				return err
+			}
+			encryptedManifest, err := encryptAndArmor(strManifest, toKeyring)
+			if err != nil {
+				return err
+			}
+
+			body = string(encryptedBody)
+			manifest = string(encryptedManifest)
+
+			_ = subject
+		} else if kind == "manifest" {
+			// Variables used for attachment search
+			manifestIndex := -1
+			bodyIndex := -1
+
+			// Find indexes of the manifest and the body
+			for index, child := range email.Children {
+				contentType := child.Headers.Get("Content-Type")
+
+				if strings.Index(contentType, "application/x-pgp-encrypted") == 0 {
+					manifestIndex = index
+				} else if strings.Index(contentType, "multipart/alternative") == 0 {
+					bodyIndex = index
+				}
+
+				if manifestIndex != -1 && bodyIndex != -1 {
+					break
+				}
+			}
+
+			// Check that we found both parts
+			if manifestIndex == -1 || bodyIndex == -1 {
+				return fmt.Errorf("Invalid PGP/Manifest email")
+			}
+
+			// Search for the body child index
+			bodyChildIndex := -1
+			for index, child := range email.Children[bodyIndex].Children {
+				contentType := child.Headers.Get("Content-Type")
+
+				if strings.Index(contentType, "application/pgp-encrypted") == 0 {
+					bodyChildIndex = index
+					break
+				}
+			}
+
+			// Check that we found it
+			if bodyChildIndex == -1 {
+				return fmt.Errorf("Invalid PGP/Manifest email body")
+			}
+
+			// Find the manifest and the body
+			manifest = string(email.Children[manifestIndex].Body)
+			body = string(email.Children[bodyIndex].Children[bodyChildIndex].Body)
+
+			// Gather attachments and insert them into db
+			for index, child := range email.Children {
+				if index == bodyIndex || index == manifestIndex {
+					continue
+				}
+
+				_, cdparams, err := mime.ParseMediaType(child.Headers.Get("Content-Disposition"))
+				if err != nil {
+					return err
+				}
+
+				for _, account := range accounts {
+					fid := uniuri.NewLen(uniuri.UUIDLen)
+
+					_, err := gorethink.Db(config.RethinkDatabase).Table("files").Insert(&models.File{
+						Resource: models.Resource{
+							ID:           fid,
+							DateCreated:  time.Now(),
+							DateModified: time.Now(),
+							Name:         cdparams["filename"],
+							Owner:        account.ID,
+						},
+						Encrypted: models.Encrypted{
+							Encoding: "application/pgp-encrypted",
+							Data:     string(child.Body),
+						},
+					}).Run(session)
+					if err != nil {
+						return err
+					}
+
+					if _, ok := fileIDs[account.ID]; !ok {
+						fileIDs[account.ID] = []string{}
+					}
+
+					fileIDs[account.ID] = append(fileIDs[account.ID], fid)
+				}
+			}
+		} else if kind == "pgpmime" {
+			for _, child := range email.Children {
+				if strings.Index(child.Headers.Get("Content-Type"), "application/pgp-encrypted") != -1 {
+					body = string(child.Body)
+					break
+				}
+			}
 		}
 
 		// Debug
-		fmt.Printf("%v", email)
+		fmt.Printf("%v", body)
+		fmt.Printf("%v", manifest)
 
 		return nil
 	}

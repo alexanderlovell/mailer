@@ -76,6 +76,7 @@ func ParseEmail(input io.Reader) (*Message, error) {
 		header := []byte{}
 		for key, values := range part.Header {
 			header = append(header, []byte(key+": "+strings.Join(values, ", "))...)
+			header = append(header, '\n')
 		}
 
 		// Read the body - awful thing to do
