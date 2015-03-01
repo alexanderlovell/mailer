@@ -92,17 +92,21 @@ func StartQueue(config *handler.Flags) {
 		}
 
 		// Fetch the files
-		filesList := []interface{}{}
-		for _, v := range email.Files {
-			filesList = append(filesList, v)
-		}
-		cursor, err = gorethink.Db(config.RethinkDatabase).Table("files").GetAll(filesList...).Run(session)
-		if err != nil {
-			return err
-		}
 		var files []*models.File
-		if err := cursor.All(&files); err != nil {
-			return err
+		if email.Files != nil && len(email.Files) > 0 {
+			filesList := []interface{}{}
+			for _, v := range email.Files {
+				filesList = append(filesList, v)
+			}
+			cursor, err = gorethink.Db(config.RethinkDatabase).Table("files").GetAll(filesList...).Run(session)
+			if err != nil {
+				return err
+			}
+			if err := cursor.All(&files); err != nil {
+				return err
+			}
+		} else {
+			files = []*models.File{}
 		}
 
 		// Declare a contents variable
