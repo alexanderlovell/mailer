@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -553,6 +554,10 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 				cc[i] = strings.TrimSpace(v)
 			}
 
+			if len(cc) == 1 && cc[0] == "" {
+				cc = nil
+			}
+
 			// Transform headers into map[string]string
 			fh := map[string]string{}
 			for key, values := range email.Headers {
@@ -570,6 +575,44 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 				return err
 			}
 
+			// Generate list of all owned emails
+			ownEmails := map[string]struct{}{}
+			for domain, _ := range domains {
+				ownEmails[account.Name+"@"+domain] = struct{}{}
+			}
+
+			// Remove ownEmails from to and cc
+			to2 := []string{}
+			for _, value := range to {
+				addr, err := mail.ParseAddress(value)
+				if err != nil {
+					return err
+				}
+
+				if _, ok := ownEmails[addr.Address]; !ok {
+					to2 = append(to2, value)
+				}
+			}
+
+			to = to2
+
+			if cc != nil {
+				cc2 := []string{}
+				for _, value := range cc {
+					addr, err := mail.ParseAddress(value)
+					if err != nil {
+						return err
+					}
+
+					if _, ok := ownEmails[addr.Address]; !ok {
+						cc2 = append(cc2, value)
+					}
+				}
+
+				cc = cc2
+			}
+
+			// Find the thread
 			var threads []*models.Thread
 			if err := cursor.All(&threads); len(threads) == 0 || err != nil {
 				thread = &models.Thread{
@@ -643,7 +686,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			}
 
 			// Insert the email
-			_, err = gorethink.Db(config.RethinkDatabase).Table("emails").Insert(email).Run(session)
+			_, err = gorethink.Db(config.RethinkDatabase).Table("emails").Insert(es).Run(session)
 			if err != nil {
 				return err
 			}
