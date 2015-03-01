@@ -51,11 +51,11 @@ var (
 		return address + ":4150"
 	}(), "Address of the nsqd server")
 	lookupdAddress = flag.String("lookupd_address", func() string {
-		address := os.Getenv("NSQLOOKUPD_PORT_4160_TCP_ADDR")
+		address := os.Getenv("NSQLOOKUPD_PORT_4161_TCP_ADDR")
 		if address == "" {
 			address = "127.0.0.1"
 		}
-		return address + ":4160"
+		return address + ":4161"
 	}(), "Address of the lookupd server")
 
 	// smtp relay address

@@ -50,7 +50,7 @@ func StartQueue(config *handler.Flags) {
 	}
 
 	// Create a new producer
-	consumer, err := nsq.NewConsumer("send_mail", "receive", nsq.NewConfig())
+	consumer, err := nsq.NewConsumer("send_email", "receive", nsq.NewConfig())
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"error": err.Error(),
