@@ -5,12 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"mime"
 	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/bitly/go-nsq"
 	"github.com/blang/semver"
 	"github.com/dancannon/gorethink"
 	"github.com/dchest/uniuri"
@@ -50,6 +52,14 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 		log.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Fatal("Unable to connect to RethinkDB")
+	}
+
+	// Connect to NSQ
+	producer, err := nsq.NewProducer(config.NSQDAddress, nsq.NewConfig())
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"error": err.Error(),
+		}).Fatal("Unable to connect to NSQd")
 	}
 
 	// Last message sent by PrepareHandler
@@ -454,6 +464,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			// Find the manifest and the body
 			manifest = string(email.Children[manifestIndex].Body)
 			body = string(email.Children[bodyIndex].Children[bodyChildIndex].Body)
+			subject = "Encrypted email"
 
 			// Gather attachments and insert them into db
 			for index, child := range email.Children {
@@ -497,14 +508,165 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			for _, child := range email.Children {
 				if strings.Index(child.Headers.Get("Content-Type"), "application/pgp-encrypted") != -1 {
 					body = string(child.Body)
+					subject = child.Headers.Get("Subject")
 					break
 				}
 			}
 		}
 
-		// Debug
-		fmt.Printf("%v", body)
-		fmt.Printf("%v", manifest)
+		// Save the email for each recipient
+		for _, account := range accounts {
+			// Find user's Inbox label
+			cursor, err := gorethink.Db(config.RethinkDatabase).Table("labels").Filter(map[string]interface{}{
+				"owner":   account.ID,
+				"name":    "Inbox",
+				"builtin": true,
+			}).Run(session)
+			if err != nil {
+				return err
+			}
+
+			var inbox *models.Label
+			if err := cursor.One(&inbox); err != nil {
+				return err
+			}
+
+			// Get the subject's hash
+			subjectHash := email.Headers.Get("Subject-Hash")
+			if subjectHash == "" {
+				subject := email.Headers.Get("Subject")
+				hash := sha256.Sum256([]byte(subject))
+				subjectHash = hex.EncodeToString(hash[:])
+			}
+
+			// Generate the email ID
+			eid := uniuri.NewLen(uniuri.UUIDLen)
+
+			// Prepare from, to and cc
+			from := strings.TrimSpace(email.Headers.Get("from"))
+			to := strings.Split(email.Headers.Get("to"), ", ")
+			cc := strings.Split(email.Headers.Get("cc"), ", ")
+			for i, v := range to {
+				to[i] = strings.TrimSpace(v)
+			}
+			for i, v := range cc {
+				cc[i] = strings.TrimSpace(v)
+			}
+
+			// Transform headers into map[string]string
+			fh := map[string]string{}
+			for key, values := range email.Headers {
+				fh[key] = strings.Join(values, ", ")
+			}
+
+			// Find the thread
+			var thread *models.Thread
+
+			cursor, err = gorethink.Db(config.RethinkDatabase).Table("threads").Filter(map[string]interface{}{
+				"owner":        account.ID,
+				"subject_hash": subjectHash,
+			}).Run(session)
+			if err != nil {
+				return err
+			}
+
+			var threads []*models.Thread
+			if err := cursor.All(&threads); len(threads) == 0 || err != nil {
+				thread = &models.Thread{
+					Resource: models.Resource{
+						ID:           uniuri.NewLen(uniuri.UUIDLen),
+						DateCreated:  time.Now(),
+						DateModified: time.Now(),
+						Name:         "Encrypted thread",
+						Owner:        account.ID,
+					},
+					Emails:      []string{eid},
+					Labels:      []string{inbox.ID},
+					Members:     append(append(to, cc...), from),
+					IsRead:      false,
+					SubjectHash: subjectHash,
+				}
+
+				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Insert(thread).Run(session)
+				if err != nil {
+					return err
+				}
+			} else {
+				thread = threads[0]
+
+				foundLabel := false
+				for _, label := range thread.Labels {
+					if label == inbox.ID {
+						foundLabel = true
+						break
+					}
+				}
+
+				if !foundLabel {
+					thread.Labels = append(thread.Labels, inbox.ID)
+				}
+
+				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Get(thread.ID).Update(map[string]interface{}{
+					"date_modified": gorethink.Now(),
+					"is_read":       false,
+					"labels":        thread.Labels,
+				}).Run(session)
+				if err != nil {
+					return err
+				}
+			}
+
+			// Prepare a new email
+			es := &models.Email{
+				Resource: models.Resource{
+					ID:           eid,
+					DateCreated:  time.Now(),
+					DateModified: time.Now(),
+					Name:         subject,
+					Owner:        account.ID,
+				},
+				Kind:   kind,
+				From:   from,
+				To:     to,
+				CC:     cc,
+				Body:   body,
+				Thread: thread.ID,
+				Status: "received",
+			}
+
+			if fileIDs != nil {
+				es.Files = fileIDs[account.ID]
+			}
+
+			if manifest != "" {
+				es.Manifest = manifest
+			}
+
+			// Insert the email
+			_, err = gorethink.Db(config.RethinkDatabase).Table("emails").Insert(email).Run(session)
+			if err != nil {
+				return err
+			}
+
+			// Prepare a notification message
+			notification, err := json.Marshal(map[string]interface{}{
+				"id":    eid,
+				"owner": account.ID,
+			})
+			if err != nil {
+				return err
+			}
+
+			// Notify the cluster
+			err = producer.Publish("email_receipt", notification)
+			if err != nil {
+				return err
+			}
+
+			log.WithFields(logrus.Fields{
+				"id": eid,
+			}).Info("Finished processing an email")
+		}
 
 		return nil
 	}
