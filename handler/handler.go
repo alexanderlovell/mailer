@@ -175,7 +175,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 		} else if strings.HasPrefix(contentType, "multipart/mixed") && len(email.Children) >= 2 {
 			// Has manifest? It is an email with a PGP manifest. If not, it's unencrypted.
 			for _, child := range email.Children {
-				if strings.HasPrefix(child.Headers.Get("Content-Type"), "application/x-pgp-panifest") {
+				if strings.HasPrefix(child.Headers.Get("Content-Type"), "application/x-pgp-manifest") {
 					kind = "manifest"
 					break
 				}
@@ -419,6 +419,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 
 			body = string(encryptedBody)
 			manifest = string(encryptedManifest)
+			kind = "manifest"
 
 			_ = subject
 		} else if kind == "manifest" {
