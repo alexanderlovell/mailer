@@ -561,6 +561,8 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 					}
 				}
 
+				subject = StripPrefixes(strings.TrimSpace(subject))
+
 				hash := sha256.Sum256([]byte(subject))
 				subjectHash = hex.EncodeToString(hash[:])
 			}
