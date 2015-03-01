@@ -5,6 +5,7 @@ import (
 
 	"github.com/lavab/flag"
 	"github.com/lavab/mailer/handler"
+	"github.com/lavab/mailer/outbound"
 	"github.com/lavab/smtpd"
 )
 
@@ -56,12 +57,15 @@ var (
 		}
 		return address + ":4160"
 	}(), "Address of the lookupd server")
+
+	// smtp relay address
+	smtpAddress = flag.String("smtp_address", "127.0.0.1:2525", "Address of the SMTP server used for message relaying")
 )
 
 func main() {
 	flag.Parse()
 
-	h := handler.PrepareHandler(&handler.Flags{
+	config := &handler.Flags{
 		EtcdAddress:      *etcdAddress,
 		EtcdCAFile:       *etcdCAFile,
 		EtcdCertFile:     *etcdCertFile,
@@ -77,12 +81,17 @@ func main() {
 		RethinkDatabase:  *rethinkdbDatabase,
 		NSQDAddress:      *nsqdAddress,
 		LookupdAddress:   *lookupdAddress,
-	})
+		SMTPAddress:      *smtpAddress,
+	}
+
+	h := handler.PrepareHandler(config)
 
 	server := &smtpd.Server{
 		WelcomeMessage: *welcomeMessage,
 		Handler:        h,
 	}
+
+	outbound.StartQueue(config)
 
 	server.ListenAndServe(*bindAddress)
 }

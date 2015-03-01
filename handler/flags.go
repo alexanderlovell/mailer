@@ -19,4 +19,6 @@ type Flags struct {
 
 	NSQDAddress    string
 	LookupdAddress string
+
+	SMTPAddress string
 }

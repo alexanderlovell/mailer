@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/alexcesaro/quotedprintable"
 	"github.com/bitly/go-nsq"
 	"github.com/blang/semver"
 	"github.com/dancannon/gorethink"
@@ -263,7 +264,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 						id := uniuri.NewLen(uniuri.UUIDLen)
 
 						// Encrypt the body
-						encryptedBody, err := encryptAndArmor(msg.Body, toKeyring)
+						encryptedBody, err := EncryptAndArmor(msg.Body, toKeyring)
 						if err != nil {
 							return err
 						}
@@ -394,17 +395,26 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			// Generate the manifest
 			emailID := uniuri.NewLen(uniuri.UUIDLen)
 			subject = "Encrypted message (" + emailID + ")"
+
+			s2 := email.Headers.Get("subject")
+			if s2[0] == '=' && s2[1] == '?' {
+				s2, _, err = quotedprintable.DecodeHeader(s2)
+				if err != nil {
+					return err
+				}
+			}
+
 			rawManifest := &man.Manifest{
 				Version: semver.Version{1, 0, 0, nil, nil},
 				From:    from[0],
 				To:      to,
 				CC:      cc,
-				Subject: email.Headers.Get("subject"),
+				Subject: s2,
 				Parts:   parts,
 			}
 
 			// Encrypt the manifest and the body
-			encryptedBody, err := encryptAndArmor([]byte(bodyText), toKeyring)
+			encryptedBody, err := EncryptAndArmor([]byte(bodyText), toKeyring)
 			if err != nil {
 				return err
 			}
@@ -412,7 +422,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			if err != nil {
 				return err
 			}
-			encryptedManifest, err := encryptAndArmor(strManifest, toKeyring)
+			encryptedManifest, err := EncryptAndArmor(strManifest, toKeyring)
 			if err != nil {
 				return err
 			}
@@ -516,6 +526,13 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			}
 		}
 
+		if subject[0] == '=' && subject[1] == '?' {
+			subject, _, err = quotedprintable.DecodeHeader(subject)
+			if err != nil {
+				return err
+			}
+		}
+
 		// Save the email for each recipient
 		for _, account := range accounts {
 			// Find user's Inbox label
@@ -537,6 +554,13 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			subjectHash := email.Headers.Get("Subject-Hash")
 			if subjectHash == "" {
 				subject := email.Headers.Get("Subject")
+				if subject[0] == '=' && subject[1] == '?' {
+					subject, _, err = quotedprintable.DecodeHeader(subject)
+					if err != nil {
+						return err
+					}
+				}
+
 				hash := sha256.Sum256([]byte(subject))
 				subjectHash = hex.EncodeToString(hash[:])
 			}

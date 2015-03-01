@@ -8,7 +8,7 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 )
 
-func encryptAndArmor(input []byte, to []*openpgp.Entity) ([]byte, error) {
+func EncryptAndArmor(input []byte, to []*openpgp.Entity) ([]byte, error) {
 	encOutput := &bytes.Buffer{}
 	encInput, err := openpgp.Encrypt(encOutput, to, nil, nil, nil)
 	if err != nil {
