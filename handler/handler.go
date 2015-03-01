@@ -431,7 +431,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			for index, child := range email.Children {
 				contentType := child.Headers.Get("Content-Type")
 
-				if strings.Index(contentType, "application/x-pgp-encrypted") == 0 {
+				if strings.Index(contentType, "application/pgp-encrypted") == 0 {
 					manifestIndex = index
 				} else if strings.Index(contentType, "multipart/alternative") == 0 {
 					bodyIndex = index
@@ -587,7 +587,8 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			for _, value := range to {
 				addr, err := mail.ParseAddress(value)
 				if err != nil {
-					return err
+					// Mail is probably empty
+					continue
 				}
 
 				if _, ok := ownEmails[addr.Address]; !ok {
@@ -602,7 +603,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 				for _, value := range cc {
 					addr, err := mail.ParseAddress(value)
 					if err != nil {
-						return err
+						continue
 					}
 
 					if _, ok := ownEmails[addr.Address]; !ok {
