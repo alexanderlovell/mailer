@@ -64,7 +64,6 @@ var (
 	// dkim selector, domain and key
 	dkimKey      = flag.String("dkim_key", "", "Path of the DKIM private file")
 	dkimSelector = flag.String("dkim_selector", "default", "DKIM selector")
-	dkimDomain   = flag.String("dkim_domain", "", "DKIM domain")
 )
 
 func main() {
@@ -89,7 +88,6 @@ func main() {
 		SMTPAddress:      *smtpAddress,
 		DKIMKey:          *dkimKey,
 		DKIMSelector:     *dkimSelector,
-		DKIMDomain:       *dkimDomain,
 	}
 
 	h := handler.PrepareHandler(config)

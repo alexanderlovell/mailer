@@ -25,6 +25,12 @@ import (
 	"golang.org/x/crypto/openpgp"
 )
 
+var domains = map[string]struct{}{
+	"lavaboom.com": struct{}{},
+	"lavaboom.io":  struct{}{},
+	"lavaboom.co":  struct{}{},
+}
+
 func StartQueue(config *handler.Flags) {
 	// Initialize a new logger
 	log := logrus.New()
@@ -68,8 +74,10 @@ func StartQueue(config *handler.Flags) {
 	}
 
 	// Load a DKIM signer
-	var dkimSigner *dkim.DKIM
+	var dkimSigner map[string]*dkim.DKIM
 	if config.DKIMKey != "" {
+		dkimSigner = map[string]*dkim.DKIM{}
+
 		key, err := ioutil.ReadFile(config.DKIMKey)
 		if err != nil {
 			log.WithFields(logrus.Fields{
@@ -77,21 +85,23 @@ func StartQueue(config *handler.Flags) {
 			}).Fatal("Unable to read DKIM private key")
 		}
 
-		dkimConf, err := dkim.NewConf(config.DKIMDomain, config.DKIMSelector)
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"error": err.Error(),
-			}).Fatal("Unable to create a new DKIM conf object")
-		}
+		for domain, _ := range domains {
+			dkimConf, err := dkim.NewConf(domain, config.DKIMSelector)
+			if err != nil {
+				log.WithFields(logrus.Fields{
+					"error": err.Error(),
+				}).Fatal("Unable to create a new DKIM conf object")
+			}
 
-		dk, err := dkim.New(dkimConf, key)
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"error": err.Error(),
-			}).Fatal("Unable to create a new DKIM signer")
-		}
+			dk, err := dkim.New(dkimConf, key)
+			if err != nil {
+				log.WithFields(logrus.Fields{
+					"error": err.Error(),
+				}).Fatal("Unable to create a new DKIM signer")
+			}
 
-		dkimSigner = dk
+			dkimSigner[domain] = dk
+		}
 	}
 
 	consumer.AddConcurrentHandlers(nsq.HandlerFunc(func(msg *nsq.Message) error {
@@ -487,17 +497,22 @@ func StartQueue(config *handler.Flags) {
 
 		// Sign the email
 		if dkimSigner != nil {
-			// Replace newlines with \r\n
-			contents = strings.Replace(contents, "\n", "\r\n", -1)
+			parts := strings.Split(email.From, "@")
+			if len(parts) == 2 {
+				if _, ok := dkimSigner[parts[1]]; ok {
+					// Replace newlines with \r\n
+					contents = strings.Replace(contents, "\n", "\r\n", -1)
 
-			// Sign it
-			data, err := dkimSigner.Sign([]byte(contents))
-			if err != nil {
-				return err
+					// Sign it
+					data, err := dkimSigner[parts[1]].Sign([]byte(contents))
+					if err != nil {
+						return err
+					}
+
+					// Replace contents with signed
+					contents = string(data)
+				}
 			}
-
-			// Replace contents with signed
-			contents = string(data)
 		}
 
 		if err := smtp.SendMail(config.SMTPAddress, nil, email.From, recipients, []byte(contents)); err != nil {

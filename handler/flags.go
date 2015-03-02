@@ -24,5 +24,4 @@ type Flags struct {
 
 	DKIMKey      string
 	DKIMSelector string
-	DKIMDomain   string
 }
