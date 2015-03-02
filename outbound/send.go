@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io/ioutil"
 	"net/mail"
 	"net/smtp"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/dancannon/gorethink"
 	"github.com/dchest/uniuri"
+	"github.com/eaigner/dkim"
 	"github.com/lavab/api/models"
 	"github.com/lavab/mailer/handler"
 	man "github.com/lavab/pgp-manifest-go"
@@ -63,6 +65,33 @@ func StartQueue(config *handler.Flags) {
 		log.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Fatal("Unable to connect to NSQd")
+	}
+
+	// Load a DKIM signer
+	var dkimSigner *dkim.DKIM
+	if config.DKIMKey != "" {
+		key, err := ioutil.ReadFile(config.DKIMKey)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"error": err.Error(),
+			}).Fatal("Unable to read DKIM private key")
+		}
+
+		dkimConf, err := dkim.NewConf(config.DKIMDomain, config.DKIMSelector)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"error": err.Error(),
+			}).Fatal("Unable to create a new DKIM conf object")
+		}
+
+		dk, err := dkim.New(dkimConf, key)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"error": err.Error(),
+			}).Fatal("Unable to create a new DKIM signer")
+		}
+
+		dkimSigner = dk
 	}
 
 	consumer.AddConcurrentHandlers(nsq.HandlerFunc(func(msg *nsq.Message) error {
@@ -455,6 +484,21 @@ func StartQueue(config *handler.Flags) {
 			"id":    email.ID,
 			"owner": email.Owner,
 		})
+
+		// Sign the email
+		if dkimSigner != nil {
+			// Replace newlines with \r\n
+			contents = strings.Replace(contents, "\n", "\r\n", -1)
+
+			// Sign it
+			data, err := dkimSigner.Sign([]byte(contents))
+			if err != nil {
+				return err
+			}
+
+			// Replace contents with signed
+			contents = string(data)
+		}
 
 		if err := smtp.SendMail(config.SMTPAddress, nil, email.From, recipients, []byte(contents)); err != nil {
 			err := producer.Publish("email_bounced", nsqmsg)

@@ -21,4 +21,8 @@ type Flags struct {
 	LookupdAddress string
 
 	SMTPAddress string
+
+	DKIMKey      string
+	DKIMSelector string
+	DKIMDomain   string
 }

@@ -60,6 +60,11 @@ var (
 
 	// smtp relay address
 	smtpAddress = flag.String("smtp_address", "127.0.0.1:2525", "Address of the SMTP server used for message relaying")
+
+	// dkim selector, domain and key
+	dkimKey      = flag.String("dkim_key", "", "Path of the DKIM private file")
+	dkimSelector = flag.String("dkim_selector", "default", "DKIM selector")
+	dkimDomain   = flag.String("dkim_domain", "", "DKIM domain")
 )
 
 func main() {
@@ -82,6 +87,9 @@ func main() {
 		NSQDAddress:      *nsqdAddress,
 		LookupdAddress:   *lookupdAddress,
 		SMTPAddress:      *smtpAddress,
+		DKIMKey:          *dkimKey,
+		DKIMSelector:     *dkimSelector,
+		DKIMDomain:       *dkimDomain,
 	}
 
 	h := handler.PrepareHandler(config)
