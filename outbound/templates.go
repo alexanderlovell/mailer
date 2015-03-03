@@ -39,6 +39,7 @@ type rawMultiContext struct {
 	Boundary1   string
 	Subject     string
 	ContentType string
+	Body        string
 	Files       []*emailFile
 }
 

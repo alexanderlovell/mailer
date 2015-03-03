@@ -197,6 +197,7 @@ func StartQueue(config *handler.Flags) {
 					Boundary1:   uniuri.NewLen(20),
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					ContentType: email.ContentType,
+					Body:        email.Body,
 					Files:       emailFiles,
 				}
 
@@ -506,11 +507,12 @@ func StartQueue(config *handler.Flags) {
 					// Sign it
 					data, err := dkimSigner[parts[1]].Sign([]byte(contents))
 					if err != nil {
+						log.Print(err)
 						return err
 					}
 
 					// Replace contents with signed
-					contents = string(data)
+					contents = strings.Replace(string(data), "\r\n", "\n", -1)
 				}
 			}
 		}
