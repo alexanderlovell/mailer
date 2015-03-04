@@ -645,7 +645,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			if err := cursor.All(&threads); len(threads) == 0 || err != nil {
 				secure := "all"
 				if kind == "raw" {
-					secure = none
+					secure = "none"
 				}
 
 				thread = &models.Thread{
