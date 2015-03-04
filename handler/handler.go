@@ -643,6 +643,11 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			// Find the thread
 			var threads []*models.Thread
 			if err := cursor.All(&threads); len(threads) == 0 || err != nil {
+				secure := "all"
+				if kind == "raw" {
+					secure = none
+				}
+
 				thread = &models.Thread{
 					Resource: models.Resource{
 						ID:           uniuri.NewLen(uniuri.UUIDLen),
@@ -656,6 +661,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 					Members:     append(append(to, cc...), from),
 					IsRead:      false,
 					SubjectHash: subjectHash,
+					Secure:      secure,
 				}
 
 				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Insert(thread).Run(session)
@@ -677,11 +683,20 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 					thread.Labels = append(thread.Labels, inbox.ID)
 				}
 
-				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Get(thread.ID).Update(map[string]interface{}{
+				update := map[string]interface{}{
 					"date_modified": gorethink.Now(),
 					"is_read":       false,
 					"labels":        thread.Labels,
-				}).Run(session)
+				}
+
+				// update thread.secure depending on email's kind
+				if (kind == "raw" && thread.Secure == "all") ||
+					(kind == "manifest" && thread.Secure == "none") ||
+					(kind == "pgpmime" && thread.Secure == "none") {
+					update["secure"] = "some"
+				}
+
+				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Get(thread.ID).Update(update).Run(session)
 				if err != nil {
 					return err
 				}
