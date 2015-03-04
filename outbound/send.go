@@ -165,7 +165,7 @@ func StartQueue(config *handler.Flags) {
 					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					ContentType: email.ContentType,
-					Body:        email.Body,
+					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -202,7 +202,7 @@ func StartQueue(config *handler.Flags) {
 					Boundary1:   uniuri.NewLen(20),
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					ContentType: email.ContentType,
-					Body:        email.Body,
+					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
 					Files:       emailFiles,
 				}
 
@@ -400,7 +400,7 @@ func StartQueue(config *handler.Flags) {
 				MessageID:   messageID,
 				Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 				ContentType: email.ContentType,
-				Body:        email.Body,
+				Body:        quotedprintable.EncodeToString([]byte(email.Body)),
 			}
 
 			if email.CC != nil && len(email.CC) > 0 {
@@ -430,7 +430,7 @@ func StartQueue(config *handler.Flags) {
 					Boundary1:   uniuri.NewLen(20),
 					Boundary2:   uniuri.NewLen(20),
 					ID:          email.ID,
-					Body:        email.Body,
+					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
 					Manifest:    email.Manifest,
 					SubjectHash: thread.SubjectHash,
 				}
@@ -470,7 +470,7 @@ func StartQueue(config *handler.Flags) {
 					Boundary1:   uniuri.NewLen(20),
 					Boundary2:   uniuri.NewLen(20),
 					ID:          email.ID,
-					Body:        email.Body,
+					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
 					Manifest:    email.Manifest,
 					SubjectHash: thread.SubjectHash,
 					Files:       emailFiles,
