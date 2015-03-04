@@ -110,6 +110,9 @@ func StartQueue(config *handler.Flags) {
 			return err
 		}
 
+		idHash := sha256.Sum256([]byte(id))
+		messageID := hex.EncodeToString(idHash[:]) + "@" + config.Hostname
+
 		// Get the email from the database
 		cursor, err := gorethink.Db(config.RethinkDatabase).Table("emails").Get(id).Run(session)
 		if err != nil {
@@ -159,6 +162,7 @@ func StartQueue(config *handler.Flags) {
 				context := &rawSingleContext{
 					From:        email.From,
 					CombinedTo:  strings.Join(email.To, ", "),
+					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					ContentType: email.ContentType,
 					Body:        email.Body,
@@ -194,6 +198,7 @@ func StartQueue(config *handler.Flags) {
 				context := &rawMultiContext{
 					From:        email.From,
 					CombinedTo:  strings.Join(email.To, ", "),
+					MessageID:   messageID,
 					Boundary1:   uniuri.NewLen(20),
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					ContentType: email.ContentType,
@@ -392,6 +397,7 @@ func StartQueue(config *handler.Flags) {
 			context := &pgpContext{
 				From:        email.From,
 				CombinedTo:  strings.Join(email.To, ", "),
+				MessageID:   messageID,
 				Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 				ContentType: email.ContentType,
 				Body:        email.Body,
@@ -419,6 +425,7 @@ func StartQueue(config *handler.Flags) {
 				context := &manifestSingleContext{
 					From:        email.From,
 					CombinedTo:  strings.Join(email.To, ", "),
+					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					Boundary1:   uniuri.NewLen(20),
 					Boundary2:   uniuri.NewLen(20),
@@ -458,6 +465,7 @@ func StartQueue(config *handler.Flags) {
 				context := &manifestMultiContext{
 					From:        email.From,
 					CombinedTo:  strings.Join(email.To, ", "),
+					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
 					Boundary1:   uniuri.NewLen(20),
 					Boundary2:   uniuri.NewLen(20),

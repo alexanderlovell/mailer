@@ -11,6 +11,7 @@ type rawSingleContext struct {
 	CombinedCC  string
 	HasReplyTo  bool
 	ReplyTo     string
+	MessageID   string
 	Subject     string
 	ContentType string
 	Body        string
@@ -22,6 +23,7 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
+Message-Id: <{{.MessageID}}>
 Content-Type: {{.ContentType}}
 Content-Transfer-Encoding: quoted-printable
 Subject: {{.Subject}}
@@ -36,6 +38,7 @@ type rawMultiContext struct {
 	CombinedCC  string
 	HasReplyTo  bool
 	ReplyTo     string
+	MessageID   string
 	Boundary1   string
 	Subject     string
 	ContentType string
@@ -49,6 +52,7 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
+Message-Id: <{{.MessageID}}>
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 
@@ -76,6 +80,7 @@ type pgpContext struct {
 	CombinedCC  string
 	HasReplyTo  bool
 	ReplyTo     string
+	MessageID   string
 	ContentType string
 	Subject     string
 	Body        string
@@ -87,6 +92,7 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
+Message-Id: <{{.MessageID}}>
 Content-Type: {{.ContentType}}
 Subject: {{.Subject}}
 
@@ -100,6 +106,7 @@ type manifestSingleContext struct {
 	CombinedCC  string
 	HasReplyTo  bool
 	ReplyTo     string
+	MessageID   string
 	Boundary1   string
 	Subject     string
 	SubjectHash string
@@ -115,6 +122,7 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
+Message-Id: <{{.MessageID}}>
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 Subject-Hash: {{.SubjectHash}}
@@ -159,6 +167,7 @@ type manifestMultiContext struct {
 	CombinedCC  string
 	HasReplyTo  bool
 	ReplyTo     string
+	MessageID   string
 	Boundary1   string
 	Subject     string
 	SubjectHash string
@@ -175,6 +184,7 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
+Message-Id: <{{.MessageID}}>
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 Subject-Hash: {{.SubjectHash}}
