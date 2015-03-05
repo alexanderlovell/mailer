@@ -391,6 +391,12 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			if err != nil {
 				return err
 			}
+			if len(from[0].Name) > 1 && from[0].Name[0] == '-' && from[0].Name[1] == '?' {
+				from[0].Name, _, err = quotedprintable.DecodeHeader(from[0].Name)
+				if err != nil {
+					return err
+				}
+			}
 
 			// Generate the manifest
 			emailID := uniuri.NewLen(uniuri.UUIDLen)
