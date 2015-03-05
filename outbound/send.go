@@ -151,8 +151,27 @@ func StartQueue(config *handler.Flags) {
 			files = []*models.File{}
 		}
 
+		// Fetch the owner
+		cursor, err = gorethink.Db(config.RethinkDatabase).Table("accounts").Get(email.Owner).Run(session)
+		if err != nil {
+			return err
+		}
+		var account *models.Account
+		if err := cursor.One(&account); err != nil {
+			return err
+		}
+
 		// Declare a contents variable
 		contents := ""
+
+		ctxFrom := email.From
+		if v1, ok := account.Settings.(map[string]interface{}); ok {
+			if v2, ok := v1["displayName"]; ok {
+				if v3, ok := v2.(string); ok {
+					ctxFrom = v3 + " <" + ctxFrom + ">"
+				}
+			}
+		}
 
 		if email.Kind == "raw" {
 			// Encode the email
@@ -160,7 +179,7 @@ func StartQueue(config *handler.Flags) {
 				buffer := &bytes.Buffer{}
 
 				context := &rawSingleContext{
-					From:        email.From,
+					From:        ctxFrom,
 					CombinedTo:  strings.Join(email.To, ", "),
 					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
@@ -196,7 +215,7 @@ func StartQueue(config *handler.Flags) {
 				}
 
 				context := &rawMultiContext{
-					From:        email.From,
+					From:        ctxFrom,
 					CombinedTo:  strings.Join(email.To, ", "),
 					MessageID:   messageID,
 					Boundary1:   uniuri.NewLen(20),
@@ -395,7 +414,7 @@ func StartQueue(config *handler.Flags) {
 			buffer := &bytes.Buffer{}
 
 			context := &pgpContext{
-				From:        email.From,
+				From:        ctxFrom,
 				CombinedTo:  strings.Join(email.To, ", "),
 				MessageID:   messageID,
 				Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
@@ -423,7 +442,7 @@ func StartQueue(config *handler.Flags) {
 				buffer := &bytes.Buffer{}
 
 				context := &manifestSingleContext{
-					From:        email.From,
+					From:        ctxFrom,
 					CombinedTo:  strings.Join(email.To, ", "),
 					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
@@ -463,7 +482,7 @@ func StartQueue(config *handler.Flags) {
 				}
 
 				context := &manifestMultiContext{
-					From:        email.From,
+					From:        ctxFrom,
 					CombinedTo:  strings.Join(email.To, ", "),
 					MessageID:   messageID,
 					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
