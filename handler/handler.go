@@ -391,12 +391,6 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			if err != nil {
 				return err
 			}
-			if len(from[0].Name) > 1 && from[0].Name[0] == '-' && from[0].Name[1] == '?' {
-				from[0].Name, _, err = quotedprintable.DecodeHeader(from[0].Name)
-				if err != nil {
-					return err
-				}
-			}
 
 			// Generate the manifest
 			emailID := uniuri.NewLen(uniuri.UUIDLen)
@@ -577,7 +571,10 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			eid := uniuri.NewLen(uniuri.UUIDLen)
 
 			// Prepare from, to and cc
-			from := strings.TrimSpace(email.Headers.Get("from"))
+			from := email.Headers.Get("from")
+			if f1, err := email.Headers.AddressList("from"); err == nil && len(f1) > 0 {
+				from = strings.TrimSpace(f1[0].Name + " <" + f1[0].Address + ">")
+			}
 			to := strings.Split(email.Headers.Get("to"), ", ")
 			cc := strings.Split(email.Headers.Get("cc"), ", ")
 			for i, v := range to {
