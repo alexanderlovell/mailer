@@ -212,21 +212,33 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 				contentType := msg.Headers.Get("Content-Type")
 
 				if strings.HasPrefix(contentType, "multipart/alternative") {
-					firstIndex := -1
+					preferredType := ""
+					preferredIndex := -1
 
-					// Find the first supported body
+					// Find the best body
 					for index, child := range msg.Children {
 						contentType := child.Headers.Get("Content-Type")
-						if strings.HasPrefix(contentType, "application/pgp-encrypted") ||
-							strings.HasPrefix(contentType, "text/html") ||
-							strings.HasPrefix(contentType, "text/plain") {
-							firstIndex = index
+						if strings.HasPrefix(contentType, "application/pgp-encrypted") {
+							preferredType = "pgp"
+							preferredIndex = index
 							break
+						}
+
+						if strings.HasPrefix(contentType, "text/html") {
+							preferredType = "html"
+							preferredIndex = index
+						}
+
+						if strings.HasPrefix(contentType, "text/plain") {
+							if preferredType != "html" {
+								preferredType = "plain"
+								preferredIndex = index
+							}
 						}
 					}
 
 					// Parse its media type to remove non-required stuff
-					match := msg.Children[firstIndex]
+					match := msg.Children[preferredIndex]
 					mediaType, _, err := mime.ParseMediaType(match.Headers.Get("Content-Type"))
 					if err != nil {
 						return err
