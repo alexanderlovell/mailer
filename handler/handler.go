@@ -683,10 +683,13 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 					thread.Labels = append(thread.Labels, inbox.ID)
 				}
 
+				thread.Emails = append(thread.Emails, eid)
+
 				update := map[string]interface{}{
 					"date_modified": gorethink.Now(),
 					"is_read":       false,
 					"labels":        thread.Labels,
+					"emails":        thread.Emails,
 				}
 
 				// update thread.secure depending on email's kind
