@@ -20,7 +20,7 @@ import (
 	"github.com/dchest/uniuri"
 	"github.com/eaigner/dkim"
 	"github.com/lavab/api/models"
-	"github.com/lavab/mailer/handler"
+	"github.com/lavab/mailer/shared"
 	man "github.com/lavab/pgp-manifest-go"
 	"golang.org/x/crypto/openpgp"
 )
@@ -31,7 +31,7 @@ var domains = map[string]struct{}{
 	"lavaboom.co":  struct{}{},
 }
 
-func StartQueue(config *handler.Flags) {
+func StartQueue(config *shared.Flags) {
 	// Initialize a new logger
 	log := logrus.New()
 	if config.LogFormatterType == "text" {
@@ -322,7 +322,7 @@ func StartQueue(config *handler.Flags) {
 			}
 
 			// Encrypt and hash the body
-			encryptedBody, err := handler.EncryptAndArmor([]byte(email.Body), keyring)
+			encryptedBody, err := shared.EncryptAndArmor([]byte(email.Body), keyring)
 			if err != nil {
 				return err
 			}
@@ -339,7 +339,7 @@ func StartQueue(config *handler.Flags) {
 			// Encrypt the attachments
 			for _, file := range files {
 				// Encrypt the attachment
-				cipher, err := handler.EncryptAndArmor([]byte(file.Data), keyring)
+				cipher, err := shared.EncryptAndArmor([]byte(file.Data), keyring)
 				if err != nil {
 					return err
 				}
@@ -383,7 +383,7 @@ func StartQueue(config *handler.Flags) {
 			if err != nil {
 				return err
 			}
-			encryptedManifest, err := handler.EncryptAndArmor(strManifest, keyring)
+			encryptedManifest, err := shared.EncryptAndArmor(strManifest, keyring)
 			if err != nil {
 				return err
 			}

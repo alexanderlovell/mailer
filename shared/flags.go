@@ -1,4 +1,4 @@
-package handler
+package shared
 
 type Flags struct {
 	EtcdAddress  string
@@ -20,7 +20,8 @@ type Flags struct {
 	NSQDAddress    string
 	LookupdAddress string
 
-	SMTPAddress string
+	SMTPAddress  string
+	SpamdAddress string
 
 	DKIMKey      string
 	DKIMSelector string

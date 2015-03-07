@@ -6,6 +6,7 @@ import (
 	"github.com/lavab/flag"
 	"github.com/lavab/mailer/handler"
 	"github.com/lavab/mailer/outbound"
+	"github.com/lavab/mailer/shared"
 	"github.com/lavab/smtpd"
 )
 
@@ -58,8 +59,9 @@ var (
 		return address + ":4161"
 	}(), "Address of the lookupd server")
 
-	// smtp relay address
-	smtpAddress = flag.String("smtp_address", "127.0.0.1:2525", "Address of the SMTP server used for message relaying")
+	// smtp relay and spamd addresses
+	smtpAddress  = flag.String("smtp_address", "127.0.0.1:2525", "Address of the SMTP server used for message relaying")
+	spamdAddress = flag.String("spamd_address", "127.0.0.1:783", "Address of the spamd server used for antispam")
 
 	// dkim selector, domain and key
 	dkimKey      = flag.String("dkim_key", "", "Path of the DKIM private file")
@@ -69,7 +71,7 @@ var (
 func main() {
 	flag.Parse()
 
-	config := &handler.Flags{
+	config := &shared.Flags{
 		EtcdAddress:      *etcdAddress,
 		EtcdCAFile:       *etcdCAFile,
 		EtcdCertFile:     *etcdCertFile,
@@ -86,6 +88,7 @@ func main() {
 		NSQDAddress:      *nsqdAddress,
 		LookupdAddress:   *lookupdAddress,
 		SMTPAddress:      *smtpAddress,
+		SpamdAddress:     *spamdAddress,
 		DKIMKey:          *dkimKey,
 		DKIMSelector:     *dkimSelector,
 	}

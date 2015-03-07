@@ -19,8 +19,10 @@ import (
 	"github.com/dancannon/gorethink"
 	"github.com/dchest/uniuri"
 	"github.com/lavab/api/models"
+	"github.com/lavab/mailer/shared"
 	man "github.com/lavab/pgp-manifest-go"
 	"github.com/lavab/smtpd"
+	"github.com/saintienn/go-spamc"
 	"golang.org/x/crypto/openpgp"
 )
 
@@ -30,7 +32,7 @@ var domains = map[string]struct{}{
 	"lavaboom.co":  struct{}{},
 }
 
-func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) error {
+func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelope) error {
 	// Initialize a new logger
 	log := logrus.New()
 	if config.LogFormatterType == "text" {
@@ -63,6 +65,9 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			"error": err.Error(),
 		}).Fatal("Unable to connect to NSQd")
 	}
+
+	// Create a new spamd client
+	spam := spamc.New(config.SpamdAddress, 10)
 
 	// Last message sent by PrepareHandler
 	log.WithFields(logrus.Fields{
@@ -160,6 +165,15 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 		}
 
 		log.Debug("Fetched keys")
+
+		// Check in the antispam
+		// isSpam := false
+		spamReply, err := spam.Check(string(e.Data))
+		if err == nil {
+			log.Print(spamReply.Code)
+			log.Print(spamReply.Message)
+			log.Print(spamReply.Vars)
+		}
 
 		// Parse the email
 		email, err := ParseEmail(bytes.NewReader(e.Data))
@@ -276,7 +290,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 						id := uniuri.NewLen(uniuri.UUIDLen)
 
 						// Encrypt the body
-						encryptedBody, err := EncryptAndArmor(msg.Body, toKeyring)
+						encryptedBody, err := shared.EncryptAndArmor(msg.Body, toKeyring)
 						if err != nil {
 							return err
 						}
@@ -426,7 +440,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			}
 
 			// Encrypt the manifest and the body
-			encryptedBody, err := EncryptAndArmor([]byte(bodyText), toKeyring)
+			encryptedBody, err := shared.EncryptAndArmor([]byte(bodyText), toKeyring)
 			if err != nil {
 				return err
 			}
@@ -434,7 +448,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 			if err != nil {
 				return err
 			}
-			encryptedManifest, err := EncryptAndArmor(strManifest, toKeyring)
+			encryptedManifest, err := shared.EncryptAndArmor(strManifest, toKeyring)
 			if err != nil {
 				return err
 			}
@@ -573,7 +587,7 @@ func PrepareHandler(config *Flags) func(peer smtpd.Peer, env smtpd.Envelope) err
 					}
 				}
 
-				subject = StripPrefixes(strings.TrimSpace(subject))
+				subject = shared.StripPrefixes(strings.TrimSpace(subject))
 
 				hash := sha256.Sum256([]byte(subject))
 				subjectHash = hex.EncodeToString(hash[:])
