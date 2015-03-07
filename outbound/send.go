@@ -417,9 +417,9 @@ func StartQueue(config *shared.Flags) {
 				From:        ctxFrom,
 				CombinedTo:  strings.Join(email.To, ", "),
 				MessageID:   messageID,
-				Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
+				Subject:     email.Name,
 				ContentType: email.ContentType,
-				Body:        quotedprintable.EncodeToString([]byte(email.Body)),
+				Body:        email.Body,
 			}
 
 			if email.CC != nil && len(email.CC) > 0 {
@@ -449,7 +449,7 @@ func StartQueue(config *shared.Flags) {
 					Boundary1:   uniuri.NewLen(20),
 					Boundary2:   uniuri.NewLen(20),
 					ID:          email.ID,
-					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
+					Body:        email.Body,
 					Manifest:    email.Manifest,
 					SubjectHash: thread.SubjectHash,
 				}
@@ -489,7 +489,7 @@ func StartQueue(config *shared.Flags) {
 					Boundary1:   uniuri.NewLen(20),
 					Boundary2:   uniuri.NewLen(20),
 					ID:          email.ID,
-					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
+					Body:        email.Body,
 					Manifest:    email.Manifest,
 					SubjectHash: thread.SubjectHash,
 					Files:       emailFiles,
