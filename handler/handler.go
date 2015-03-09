@@ -289,6 +289,15 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						// We're dealing with an attachment
 						id := uniuri.NewLen(uniuri.UUIDLen)
 
+						// Decode base64 if used
+						if msg.Headers.Get("Content-Transfer-Encoding") == "base64" {
+							var decoded []byte
+							_, err := base64.StdEncoding.Decode(decoded, msg.Body)
+							if err == nil {
+								msg.Body = decoded
+							}
+						}
+
 						// Encrypt the body
 						encryptedBody, err := shared.EncryptAndArmor(msg.Body, toKeyring)
 						if err != nil {

@@ -477,7 +477,7 @@ func StartQueue(config *shared.Flags) {
 					emailFiles = append(emailFiles, &emailFile{
 						Encoding: file.Encoding,
 						Name:     file.Name,
-						Body:     base64.StdEncoding.EncodeToString([]byte(file.Data)),
+						Body:     file.Data,
 					})
 				}
 
