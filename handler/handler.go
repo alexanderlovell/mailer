@@ -19,6 +19,7 @@ import (
 	"github.com/dancannon/gorethink"
 	"github.com/dchest/uniuri"
 	"github.com/lavab/api/models"
+	"github.com/lavab/api/utils"
 	"github.com/lavab/mailer/shared"
 	man "github.com/lavab/pgp-manifest-go"
 	"github.com/lavab/smtpd"
@@ -88,7 +89,11 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 			// Check if we support that domain
 			if _, ok := domains[parts[1]]; ok {
-				recipients = append(recipients, parts[0])
+				recipients = append(recipients,
+					utils.RemoveDots(
+						utils.NormalizeUsername(parts[0]),
+					),
+				)
 			}
 		}
 
