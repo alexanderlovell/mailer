@@ -700,12 +700,12 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					secure = "none"
 				}
 
-				labels := []string{inbox.ID}
-
+				var labels []string
 				if isSpam {
-					labels = append(labels, spam.ID)
+					labels = []string{inbox.ID}
+				} else {
+					labels = []string{spam.ID}
 				}
-
 				thread = &models.Thread{
 					Resource: models.Resource{
 						ID:           uniuri.NewLen(uniuri.UUIDLen),
@@ -729,26 +729,22 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			} else {
 				thread = threads[0]
 
-				foundInboxLabel := false
-				foundSpamLabel := false
+				var desiredID string
+				if isSpam {
+					desiredID = spam.ID
+				} else {
+					desiredID = inbox.ID
+				}
+
+				foundLabel := false
 				for _, label := range thread.Labels {
-					if label == inbox.ID {
-						foundInboxLabel = true
-					}
-
-					if label == spam.ID {
-						foundSpamLabel = true
-					}
-
-					if foundInboxLabel && foundSpamLabel {
+					if label == desiredID {
+						foundLabel = true
 						break
 					}
 				}
-				if !foundInboxLabel {
-					thread.Labels = append(thread.Labels, inbox.ID)
-				}
-				if !foundSpamLabel {
-					thread.Labels = append(thread.Labels, spam.ID)
+				if !foundLabel {
+					thread.Labels = append(thread.Labels, desiredID)
 				}
 
 				thread.Emails = append(thread.Emails, eid)
