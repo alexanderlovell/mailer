@@ -173,7 +173,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 		// Check in the antispam
 		// isSpam := false
-		spamReply, err := spam.Check(string(e.Data))
+		spamReply, err := spam.Report(string(e.Data))
 		if err == nil {
 			log.Print(spamReply.Code)
 			log.Print(spamReply.Message)
