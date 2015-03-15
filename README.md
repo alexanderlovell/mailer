@@ -1,33 +1,59 @@
-Lavaboom mailer
----------------
+# mailer
 
-Lavaboom's SMTP gateway to the world wide web.
+<img src="https://mail.lavaboom.com/img/Lavaboom-logo.svg" align="right" width="200px" />
 
-Currently only receives emails. Soon outbound email support, via postfix, will be added.
+SMTP server that handles inbound emails and an outbound email generator.
 
-How it works
-------------
+Uses `lavab/smtpd`, a fork of `bitbucket.org/chrj/smtpd` for inbound email
+handling and Postfix for routing of outbound emails.
 
-`mailer` is a Dockerized app that has 3 components:
+## Requirements
 
--	Haraka + our plugins -> receives emails
--	Postfix in send-only mode -> sends emails
--	Spamassassin daemon
+ - RethinkDB
+ - NSQ
+ - Postfix
+ - SpamAssassin
 
-### Receiving emails
+## How it works
 
-1.	check domain is in the `mx_hosts` table
-2.	check the email address
-	1.	`@lavaboom.tld`? check account name
-	2.	`@custom.domain`? check `accounts` table for email address
-3.	parse email
-	1.	create IDs for attachments
-	2.	create document in `emails` table
-	3.	upload attachments to `attachments`
-4.	post NATS message to topic `received`
+<img src="http://i.imgur.com/w2HygbX.png">
 
-### Sending emails
+## Usage
 
-1.	receive NATS message on `send`
-2.	read email from database, format it
-3.	send it to Postfix and post NATS message `delivered` when finished
+### Inside a Docker container
+
+*This image will be soon uploaded to Docker Hub*
+
+```bash
+git clone git@github.com:lavab/mailer.git
+cd mailer
+docker build -t "lavab/mailer" .
+
+docker run \
+    -p 25:25 \
+    -e "NSQD_ADDRESS=172.8.0.1:4150" \
+    -e "LOOKUPD_ADDRESS=172.8.0.1:4161" \
+    -e "SMTP_ADDRESS=172.8.0.1:2525" \
+    -e "SPAMD_ADDRESS=172.8.0.1:783" \
+    -e "RETHINKDB_ADDRESS=172.8.0.1:28015" \
+    --name mailer \
+    lavab/mailer
+```
+
+### Directly running the service
+
+```bash
+go get github.com/lavab/mailer
+
+mailer \
+    --nsqd_address=172.8.0.1:4150 \
+    --lookupd_address=172.8.0.1:4161 \
+    --smtpd_address=172.8.0.1:2525 \
+    --spamd_address=172.8.0.1:783 \
+    --rethinkdb_address=172.8.0.1:28015
+```
+
+## License
+
+This project is licensed under the MIT license. Check `license` for more
+information.
