@@ -180,7 +180,9 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			log.Print(spamReply.Vars)
 		}
 		if spamReply.Code == spamc.EX_OK {
+			log.Print("Proper code")
 			if spam, ok := spamReply.Vars["isSpam"]; ok && spam.(bool) {
+				log.Print("It's spam.")
 				isSpam = true
 			}
 		}
@@ -700,12 +702,13 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					secure = "none"
 				}
 
-				var labels []string
+				var label string
 				if isSpam {
-					labels = []string{inbox.ID}
+					label = spam.ID
 				} else {
-					labels = []string{spam.ID}
+					label = inbox.ID
 				}
+
 				thread = &models.Thread{
 					Resource: models.Resource{
 						ID:           uniuri.NewLen(uniuri.UUIDLen),
@@ -715,7 +718,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						Owner:        account.ID,
 					},
 					Emails:      []string{eid},
-					Labels:      labels,
+					Labels:      []string{label},
 					Members:     append(append(to, cc...), from),
 					IsRead:      false,
 					SubjectHash: subjectHash,
