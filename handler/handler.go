@@ -172,12 +172,17 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		log.Debug("Fetched keys")
 
 		// Check in the antispam
-		// isSpam := false
+		isSpam := false
 		spamReply, err := spam.Report(string(e.Data))
 		if err == nil {
 			log.Print(spamReply.Code)
 			log.Print(spamReply.Message)
 			log.Print(spamReply.Vars)
+		}
+		if spamReply.Code == spamc.EX_OK {
+			if spam, ok := spamReply.Vars["isSpam"]; ok && spam.(bool) {
+				isSpam = true
+			}
 		}
 
 		// Parse the email
@@ -293,15 +298,6 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					if err == nil && disposition == "attachment" {
 						// We're dealing with an attachment
 						id := uniuri.NewLen(uniuri.UUIDLen)
-
-						// Decode base64 if used
-						if msg.Headers.Get("Content-Transfer-Encoding") == "base64" {
-							var decoded []byte
-							_, err := base64.StdEncoding.Decode(decoded, msg.Body)
-							if err == nil {
-								msg.Body = decoded
-							}
-						}
 
 						// Encrypt the body
 						encryptedBody, err := shared.EncryptAndArmor(msg.Body, toKeyring)
@@ -584,9 +580,22 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			if err != nil {
 				return err
 			}
-
 			var inbox *models.Label
 			if err := cursor.One(&inbox); err != nil {
+				return err
+			}
+
+			// Find user's Spam label
+			cursor, err = gorethink.Db(config.RethinkDatabase).Table("labels").Filter(map[string]interface{}{
+				"owner":   account.ID,
+				"name":    "Spam",
+				"builtin": true,
+			}).Run(session)
+			if err != nil {
+				return err
+			}
+			var spam *models.Label
+			if err := cursor.One(&spam); err != nil {
 				return err
 			}
 
@@ -691,6 +700,12 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					secure = "none"
 				}
 
+				labels := []string{inbox.ID}
+
+				if isSpam {
+					labels = append(labels, spam.ID)
+				}
+
 				thread = &models.Thread{
 					Resource: models.Resource{
 						ID:           uniuri.NewLen(uniuri.UUIDLen),
@@ -700,7 +715,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						Owner:        account.ID,
 					},
 					Emails:      []string{eid},
-					Labels:      []string{inbox.ID},
+					Labels:      labels,
 					Members:     append(append(to, cc...), from),
 					IsRead:      false,
 					SubjectHash: subjectHash,
@@ -714,16 +729,26 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			} else {
 				thread = threads[0]
 
-				foundLabel := false
+				foundInboxLabel := false
+				foundSpamLabel := false
 				for _, label := range thread.Labels {
 					if label == inbox.ID {
-						foundLabel = true
+						foundInboxLabel = true
+					}
+
+					if label == spam.ID {
+						foundSpamLabel = true
+					}
+
+					if foundInboxLabel && foundSpamLabel {
 						break
 					}
 				}
-
-				if !foundLabel {
+				if !foundInboxLabel {
 					thread.Labels = append(thread.Labels, inbox.ID)
+				}
+				if !foundSpamLabel {
+					thread.Labels = append(thread.Labels, spam.ID)
 				}
 
 				thread.Emails = append(thread.Emails, eid)
