@@ -16,7 +16,7 @@ handling and Postfix for routing of outbound emails.
 
 ## How it works
 
-<img src="http://i.imgur.com/w2HygbX.png">
+<img src="http://i.imgur.com/bi53Lfo.png">
 
 ## Usage
 
