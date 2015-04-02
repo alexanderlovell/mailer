@@ -421,11 +421,11 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			if err != nil {
 				return err
 			}
-			to, err := email.Headers.AddressList("from")
+			to, err := email.Headers.AddressList("to")
 			if err != nil {
 				return err
 			}
-			cc, err := email.Headers.AddressList("from")
+			cc, err := email.Headers.AddressList("cc")
 			if err != nil {
 				return err
 			}
