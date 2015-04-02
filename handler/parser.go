@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -10,6 +11,8 @@ import (
 	"mime/multipart"
 	"net/mail"
 	"strings"
+
+	"gopkg.in/alexcesaro/quotedprintable.v2"
 )
 
 type Message struct {
@@ -46,6 +49,23 @@ func ParseEmail(input io.Reader) (*Message, error) {
 		message.Body, err = ioutil.ReadAll(r1.Body)
 		if err != nil {
 			return nil, err
+		}
+
+		cte := strings.ToLower(r1.Header.Get("Content-Transfer-Encoding"))
+		if cte == "base64" || cte == "quoted-printable" {
+			dst := []byte{}
+
+			if cte == "base64" {
+				if _, err := base64.StdEncoding.Decode(dst, message.Body); err != nil {
+					return nil, err
+				}
+			} else if cte == "quoted-printable" {
+				if _, err := quotedprintable.Decode(dst, message.Body); err != nil {
+					return nil, err
+				}
+			}
+
+			message.Body = dst
 		}
 
 		return message, nil
@@ -88,7 +108,7 @@ func ParseEmail(input io.Reader) (*Message, error) {
 		// Merge headers and body and pass it into ParseEmail
 		parsed, err := ParseEmail(
 			bytes.NewReader(
-				append(append(header, '\n', '\n'), body...),
+				append(append(header, '\n'), body...),
 			),
 		)
 		if err != nil {
