@@ -648,55 +648,71 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			// Find the thread
 			var thread *models.Thread
 
-			cursor, err = gorethink.Db(config.RethinkDatabase).Table("threads").Filter(map[string]interface{}{
-				"owner":        account.ID,
-				"subject_hash": subjectHash,
-			}).Run(session)
-			if err != nil {
-				return err
+			// First check if either in-reply-to or references headers are set
+			irt := ""
+			if x := email.Headers.Get("In-Reply-To"); x != "" {
+				irt = x
+			} else if x := email.Headers.Get("References"); x != "" {
+				irt = x
 			}
 
-			// Generate list of all owned emails
-			ownEmails := map[string]struct{}{}
-			for domain, _ := range domains {
-				ownEmails[account.Name+"@"+domain] = struct{}{}
-			}
+			if irt != "" {
+				// Per http://www.jwz.org/doc/threading.html:
+				// You can safely assume that the first string between <> in In-Reply-To
+				// is the message ID.
+				x1i := strings.Index(irt, "<")
+				if x1i != -1 {
+					x2i := strings.Index(irt[x1i+1:], ">")
+					if x2i != -1 {
+						irt = irt[x1i+1 : x1i+x2i+1]
+					}
+				}
 
-			// Remove ownEmails from to and cc
-			to2 := []string{}
-			for _, value := range to {
-				addr, err := mail.ParseAddress(value)
+				// Look up the parent
+				cursor, err := gorethink.Db(config.RethinkDatabase).Table("emails").GetAllByIndex("messageIDOwner", []interface{}{
+					irt,
+					account.ID,
+				}).Run(session)
 				if err != nil {
-					// Mail is probably empty
-					continue
+					return err
+				}
+				var emails []*models.Email
+				if err := cursor.All(&emails); err != nil {
+					return err
 				}
 
-				if _, ok := ownEmails[addr.Address]; !ok {
-					to2 = append(to2, value)
-				}
-			}
-
-			to = to2
-
-			if cc != nil {
-				cc2 := []string{}
-				for _, value := range cc {
-					addr, err := mail.ParseAddress(value)
+				// Found one = that one is correct
+				if len(emails) == 1 {
+					cursor, err := gorethink.Db(config.RethinkDatabase).Table("threads").Get(emails[0].ID).Run(session)
 					if err != nil {
-						continue
+						return err
 					}
-
-					if _, ok := ownEmails[addr.Address]; !ok {
-						cc2 = append(cc2, value)
+					if err := cursor.One(&thread); err != nil {
+						return err
 					}
 				}
-
-				cc = cc2
 			}
 
-			// Find the thread
-			var threads []*models.Thread
-			if err := cursor.All(&threads); len(threads) == 0 || err != nil {
+			if thread == nil {
+				// Match by subject
+				cursor, err := gorethink.Db(config.RethinkDatabase).Table("threads").GetAllByIndex("subjectOwner", []interface{}{
+					subjectHash,
+					account.ID,
+				}).Run(session)
+				if err != nil {
+					return err
+				}
+				var threads []*models.Thread
+				if err := cursor.All(&threads); err != nil {
+					return err
+				}
+
+				if len(threads) > 0 {
+					thread = threads[0]
+				}
+			}
+
+			if thread == nil {
 				secure := "all"
 				if kind == "raw" {
 					secure = "none"
@@ -730,8 +746,6 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					return err
 				}
 			} else {
-				thread = threads[0]
-
 				var desiredID string
 				if isSpam {
 					desiredID = spam.ID
@@ -770,6 +784,44 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				if err != nil {
 					return err
 				}
+			}
+
+			// Generate list of all owned emails
+			ownEmails := map[string]struct{}{}
+			for domain, _ := range domains {
+				ownEmails[account.Name+"@"+domain] = struct{}{}
+			}
+
+			// Remove ownEmails from to and cc
+			to2 := []string{}
+			for _, value := range to {
+				addr, err := mail.ParseAddress(value)
+				if err != nil {
+					// Mail is probably empty
+					continue
+				}
+
+				if _, ok := ownEmails[addr.Address]; !ok {
+					to2 = append(to2, value)
+				}
+			}
+
+			to = to2
+
+			if cc != nil {
+				cc2 := []string{}
+				for _, value := range cc {
+					addr, err := mail.ParseAddress(value)
+					if err != nil {
+						continue
+					}
+
+					if _, ok := ownEmails[addr.Address]; !ok {
+						cc2 = append(cc2, value)
+					}
+				}
+
+				cc = cc2
 			}
 
 			// Prepare a new email
