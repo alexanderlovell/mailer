@@ -5,16 +5,18 @@ import (
 )
 
 type rawSingleContext struct {
-	From        string
-	CombinedTo  string
-	HasCC       bool
-	CombinedCC  string
-	HasReplyTo  bool
-	ReplyTo     string
-	MessageID   string
-	Subject     string
-	ContentType string
-	Body        string
+	From         string
+	CombinedTo   string
+	HasCC        bool
+	CombinedCC   string
+	HasReplyTo   bool
+	ReplyTo      string
+	MessageID    string
+	HasInReplyTo bool
+	InReplyTo    string
+	Subject      string
+	ContentType  string
+	Body         string
 }
 
 var rawSingleTemplate = template.Must(template.New("rawsingle").Parse(
@@ -23,7 +25,9 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
-Message-Id: <{{.MessageID}}>
+Message-ID: <{{.MessageID}}>{{if .HasInReplyTo}}
+In-Reply-To: {{.InReplyTo}}
+References: {{.InReplyTo}}{{end}}
 Content-Type: {{.ContentType}}
 Content-Transfer-Encoding: quoted-printable
 Subject: {{.Subject}}
@@ -32,18 +36,20 @@ Subject: {{.Subject}}
 `))
 
 type rawMultiContext struct {
-	From        string
-	CombinedTo  string
-	HasCC       bool
-	CombinedCC  string
-	HasReplyTo  bool
-	ReplyTo     string
-	MessageID   string
-	Boundary1   string
-	Subject     string
-	ContentType string
-	Body        string
-	Files       []*emailFile
+	From         string
+	CombinedTo   string
+	HasCC        bool
+	CombinedCC   string
+	HasReplyTo   bool
+	ReplyTo      string
+	MessageID    string
+	HasInReplyTo bool
+	InReplyTo    string
+	Boundary1    string
+	Subject      string
+	ContentType  string
+	Body         string
+	Files        []*emailFile
 }
 
 var rawMultiTemplate = template.Must(template.New("rawmulti").Parse(
@@ -52,7 +58,9 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
-Message-Id: <{{.MessageID}}>
+Message-ID: <{{.MessageID}}>{{if .HasInReplyTo}}
+In-Reply-To: {{.InReplyTo}}
+References: {{.InReplyTo}}{{end}}
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 
@@ -74,16 +82,18 @@ Content-Disposition: attachment; filename="{{.Name}}"
 `))
 
 type pgpContext struct {
-	From        string
-	CombinedTo  string
-	HasCC       bool
-	CombinedCC  string
-	HasReplyTo  bool
-	ReplyTo     string
-	MessageID   string
-	ContentType string
-	Subject     string
-	Body        string
+	From         string
+	CombinedTo   string
+	HasCC        bool
+	CombinedCC   string
+	HasReplyTo   bool
+	ReplyTo      string
+	MessageID    string
+	HasInReplyTo bool
+	InReplyTo    string
+	ContentType  string
+	Subject      string
+	Body         string
 }
 
 var pgpTemplate = template.Must(template.New("rawmulti").Parse(
@@ -92,7 +102,9 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
-Message-Id: <{{.MessageID}}>
+Message-ID: <{{.MessageID}}>{{if .HasInReplyTo}}
+In-Reply-To: {{.InReplyTo}}
+References: {{.InReplyTo}}{{end}}
 Content-Type: {{.ContentType}}
 Subject: {{.Subject}}
 
@@ -100,20 +112,22 @@ Subject: {{.Subject}}
 `))
 
 type manifestSingleContext struct {
-	From        string
-	CombinedTo  string
-	HasCC       bool
-	CombinedCC  string
-	HasReplyTo  bool
-	ReplyTo     string
-	MessageID   string
-	Boundary1   string
-	Subject     string
-	SubjectHash string
-	Boundary2   string
-	Body        string
-	ID          string
-	Manifest    string
+	From         string
+	CombinedTo   string
+	HasCC        bool
+	CombinedCC   string
+	HasReplyTo   bool
+	ReplyTo      string
+	MessageID    string
+	HasInReplyTo bool
+	InReplyTo    string
+	Boundary1    string
+	Subject      string
+	SubjectHash  string
+	Boundary2    string
+	Body         string
+	ID           string
+	Manifest     string
 }
 
 var manifestSingleTemplate = template.Must(template.New("mansingle").Parse(
@@ -122,7 +136,9 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
-Message-Id: <{{.MessageID}}>
+Message-ID: <{{.MessageID}}>{{if .HasInReplyTo}}
+In-Reply-To: {{.InReplyTo}}
+References: {{.InReplyTo}}{{end}}
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 Subject-Hash: {{.SubjectHash}}
@@ -161,21 +177,23 @@ Content-Disposition: attachment; filename="manifest.pgp"
 `))
 
 type manifestMultiContext struct {
-	From        string
-	CombinedTo  string
-	HasCC       bool
-	CombinedCC  string
-	HasReplyTo  bool
-	ReplyTo     string
-	MessageID   string
-	Boundary1   string
-	Subject     string
-	SubjectHash string
-	Boundary2   string
-	Body        string
-	ID          string
-	Files       []*emailFile
-	Manifest    string
+	From         string
+	CombinedTo   string
+	HasCC        bool
+	CombinedCC   string
+	HasReplyTo   bool
+	ReplyTo      string
+	MessageID    string
+	HasInReplyTo bool
+	InReplyTo    string
+	Boundary1    string
+	Subject      string
+	SubjectHash  string
+	Boundary2    string
+	Body         string
+	ID           string
+	Files        []*emailFile
+	Manifest     string
 }
 
 var manifestMultiTemplate = template.Must(template.New("manmulti").Parse(
@@ -184,7 +202,9 @@ To: {{.CombinedTo}}{{if .HasCC}}
 Cc: {{.CombinedCC}}{{end}}{{ if .HasReplyTo }}
 Reply-To: {{.ReplyTo}}{{end}}
 MIME-Version: 1.0
-Message-Id: <{{.MessageID}}>
+Message-ID: <{{.MessageID}}>{{if .HasInReplyTo}}
+In-Reply-To: {{.InReplyTo}}
+References: {{.InReplyTo}}{{end}}
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 Subject-Hash: {{.SubjectHash}}

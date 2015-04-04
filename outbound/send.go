@@ -133,6 +133,31 @@ func StartQueue(config *shared.Flags) {
 			return err
 		}
 
+		// Get the proper In-Reply-To
+		hasInReplyTo := false
+		inReplyTo := ""
+
+		// Fetch received emails in the thread
+		cursor, err = gorethink.Db(config.RethinkDatabase).Table("emails").GetAllByIndex("threadStatus", []interface{}{
+			thread.ID,
+			"received",
+		}).Pluck("date_created", "message_id", "from").OrderBy(gorethink.Desc(gorethink.Row.Field("date_created"))).
+			Filter(func(row gorethink.Term) gorethink.Term {
+			return gorethink.Expr(email.To).Contains(row.Field("from"))
+		}).Limit(1).Run(session)
+		if err != nil {
+			return err
+		}
+		var emid []*models.Email
+		if err := cursor.All(&emid); err != nil {
+			return err
+		}
+
+		if len(emid) == 1 {
+			hasInReplyTo = true
+			inReplyTo = emid[0].MessageID
+		}
+
 		// Fetch the files
 		var files []*models.File
 		if email.Files != nil && len(email.Files) > 0 {
@@ -179,12 +204,14 @@ func StartQueue(config *shared.Flags) {
 				buffer := &bytes.Buffer{}
 
 				context := &rawSingleContext{
-					From:        ctxFrom,
-					CombinedTo:  strings.Join(email.To, ", "),
-					MessageID:   messageID,
-					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
-					ContentType: email.ContentType,
-					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
+					From:         ctxFrom,
+					CombinedTo:   strings.Join(email.To, ", "),
+					MessageID:    messageID,
+					HasInReplyTo: hasInReplyTo,
+					InReplyTo:    inReplyTo,
+					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					ContentType:  email.ContentType,
+					Body:         quotedprintable.EncodeToString([]byte(email.Body)),
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -215,14 +242,16 @@ func StartQueue(config *shared.Flags) {
 				}
 
 				context := &rawMultiContext{
-					From:        ctxFrom,
-					CombinedTo:  strings.Join(email.To, ", "),
-					MessageID:   messageID,
-					Boundary1:   uniuri.NewLen(20),
-					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
-					ContentType: email.ContentType,
-					Body:        quotedprintable.EncodeToString([]byte(email.Body)),
-					Files:       emailFiles,
+					From:         ctxFrom,
+					CombinedTo:   strings.Join(email.To, ", "),
+					MessageID:    messageID,
+					HasInReplyTo: hasInReplyTo,
+					InReplyTo:    inReplyTo,
+					Boundary1:    uniuri.NewLen(20),
+					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					ContentType:  email.ContentType,
+					Body:         quotedprintable.EncodeToString([]byte(email.Body)),
+					Files:        emailFiles,
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -414,12 +443,14 @@ func StartQueue(config *shared.Flags) {
 			buffer := &bytes.Buffer{}
 
 			context := &pgpContext{
-				From:        ctxFrom,
-				CombinedTo:  strings.Join(email.To, ", "),
-				MessageID:   messageID,
-				Subject:     email.Name,
-				ContentType: email.ContentType,
-				Body:        email.Body,
+				From:         ctxFrom,
+				CombinedTo:   strings.Join(email.To, ", "),
+				MessageID:    messageID,
+				HasInReplyTo: hasInReplyTo,
+				InReplyTo:    inReplyTo,
+				Subject:      email.Name,
+				ContentType:  email.ContentType,
+				Body:         email.Body,
 			}
 
 			if email.CC != nil && len(email.CC) > 0 {
@@ -442,16 +473,18 @@ func StartQueue(config *shared.Flags) {
 				buffer := &bytes.Buffer{}
 
 				context := &manifestSingleContext{
-					From:        ctxFrom,
-					CombinedTo:  strings.Join(email.To, ", "),
-					MessageID:   messageID,
-					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
-					Boundary1:   uniuri.NewLen(20),
-					Boundary2:   uniuri.NewLen(20),
-					ID:          email.ID,
-					Body:        email.Body,
-					Manifest:    email.Manifest,
-					SubjectHash: thread.SubjectHash,
+					From:         ctxFrom,
+					CombinedTo:   strings.Join(email.To, ", "),
+					MessageID:    messageID,
+					HasInReplyTo: hasInReplyTo,
+					InReplyTo:    inReplyTo,
+					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					Boundary1:    uniuri.NewLen(20),
+					Boundary2:    uniuri.NewLen(20),
+					ID:           email.ID,
+					Body:         email.Body,
+					Manifest:     email.Manifest,
+					SubjectHash:  thread.SubjectHash,
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -482,17 +515,19 @@ func StartQueue(config *shared.Flags) {
 				}
 
 				context := &manifestMultiContext{
-					From:        ctxFrom,
-					CombinedTo:  strings.Join(email.To, ", "),
-					MessageID:   messageID,
-					Subject:     quotedprintable.EncodeToString([]byte(email.Name)),
-					Boundary1:   uniuri.NewLen(20),
-					Boundary2:   uniuri.NewLen(20),
-					ID:          email.ID,
-					Body:        email.Body,
-					Manifest:    email.Manifest,
-					SubjectHash: thread.SubjectHash,
-					Files:       emailFiles,
+					From:         ctxFrom,
+					CombinedTo:   strings.Join(email.To, ", "),
+					MessageID:    messageID,
+					HasInReplyTo: hasInReplyTo,
+					InReplyTo:    inReplyTo,
+					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					Boundary1:    uniuri.NewLen(20),
+					Boundary2:    uniuri.NewLen(20),
+					ID:           email.ID,
+					Body:         email.Body,
+					Manifest:     email.Manifest,
+					SubjectHash:  thread.SubjectHash,
+					Files:        emailFiles,
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
