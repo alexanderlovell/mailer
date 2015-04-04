@@ -173,6 +173,10 @@
 		{
 			"ImportPath": "gopkg.in/alexcesaro/quotedprintable.v1/internal",
 			"Rev": "1aaa60cffe2356fde640aba799418ef1282c8f79"
+		},
+		{
+			"ImportPath": "gopkg.in/alexcesaro/quotedprintable.v2",
+			"Rev": "9b4a113f96b3263b5223fe9c5fd1d1115811b343"
 		}
 	]
 }
