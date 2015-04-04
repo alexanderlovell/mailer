@@ -833,13 +833,14 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					Name:         subject,
 					Owner:        account.ID,
 				},
-				Kind:   kind,
-				From:   from,
-				To:     to,
-				CC:     cc,
-				Body:   body,
-				Thread: thread.ID,
-				Status: "received",
+				Kind:      kind,
+				From:      from,
+				To:        to,
+				CC:        cc,
+				Body:      body,
+				Thread:    thread.ID,
+				MessageID: strings.Trim(email.Headers.Get("Message-ID"), "<>"),
+				Status:    "received",
 			}
 
 			if fileIDs != nil {
