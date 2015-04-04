@@ -419,15 +419,15 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			// Generate the from, to and cc addresses
 			from, err := email.Headers.AddressList("from")
 			if err != nil {
-				from = []string{}
+				from = []*mail.Address{}
 			}
 			to, err := email.Headers.AddressList("to")
 			if err != nil {
-				to = []string{}
+				to = []*mail.Address{}
 			}
 			cc, err := email.Headers.AddressList("cc")
 			if err != nil {
-				cc = []string{}
+				cc = []*mail.Address{}
 			}
 
 			// Generate the manifest
