@@ -104,8 +104,24 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			return fmt.Errorf("Not supported email domain")
 		}
 
+		// Fetch the mapping
+		cursor, err := gorethink.Db(config.RethinkDatabase).Table("addresses").GetAll(recipients...).Run(session)
+		if err != nil {
+			return err
+		}
+		var addresses []*models.Address
+		if err := cursor.All(&addresses); err != nil {
+			return err
+		}
+
+		// Transform the mapping into accounts
+		accountIDs := []interface{}{}
+		for _, address := range addresses {
+			accountIDs = append(accountIDs, address.Owner)
+		}
+
 		// Fetch accounts
-		cursor, err := gorethink.Db(config.RethinkDatabase).Table("accounts").GetAllByIndex("name", recipients...).Run(session)
+		cursor, err = gorethink.Db(config.RethinkDatabase).Table("accounts").GetAll(accountIDs...).Run(session)
 		if err != nil {
 			return err
 		}
@@ -116,10 +132,10 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 		// Compare request and result lengths
 		if len(accounts) != len(recipients) {
-			return fmt.Errorf("Email address not found")
+			return fmt.Errorf("One of the email addresses wasn't found")
 		}
 
-		log.Debug("Recipient found")
+		log.Debug("Recipients found")
 
 		// Prepare a variable for the combined keyring of recipients
 		toKeyring := []*openpgp.Entity{}
