@@ -53,13 +53,17 @@ func ParseEmail(input io.Reader) (*Message, error) {
 
 		cte := strings.ToLower(r1.Header.Get("Content-Transfer-Encoding"))
 		if cte == "base64" || cte == "quoted-printable" {
-			dst := []byte{}
+			var dst []byte
 
 			if cte == "base64" {
+				dst = make([]byte, base64.StdEncoding.DecodedLen(len(message.Body)))
+
 				if _, err := base64.StdEncoding.Decode(dst, message.Body); err != nil {
 					return nil, err
 				}
 			} else if cte == "quoted-printable" {
+				dst = make([]byte, quotedprintable.MaxDecodedLen(len(message.Body)))
+
 				if _, err := quotedprintable.Decode(dst, message.Body); err != nil {
 					return nil, err
 				}
