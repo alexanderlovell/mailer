@@ -225,6 +225,9 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			}
 		}
 
+		// Copy kind to a second variable for later parsing
+		initialKind := kind
+
 		// Debug the kind
 		log.Debugf("Email is %s", kind)
 
@@ -730,7 +733,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 			if thread == nil {
 				secure := "all"
-				if kind == "raw" {
+				if initialKind == "raw" {
 					secure = "none"
 				}
 
@@ -790,9 +793,9 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				}
 
 				// update thread.secure depending on email's kind
-				if (kind == "raw" && thread.Secure == "all") ||
-					(kind == "manifest" && thread.Secure == "none") ||
-					(kind == "pgpmime" && thread.Secure == "none") {
+				if (initialKind == "raw" && thread.Secure == "all") ||
+					(initialKind == "manifest" && thread.Secure == "none") ||
+					(initialKind == "pgpmime" && thread.Secure == "none") {
 					update["secure"] = "some"
 				}
 
