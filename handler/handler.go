@@ -438,7 +438,10 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			if len(from) > 0 {
 				fm = from[0]
 			} else {
-				fm = "no from header"
+				fm = &mail.Address{
+					Name:    "no from header",
+					Address: "invalid",
+				}
 			}
 			rawManifest := &man.Manifest{
 				Version: semver.Version{1, 0, 0, nil, nil},
