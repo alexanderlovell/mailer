@@ -434,7 +434,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				}
 			}
 
-			var fm string
+			var fm *mail.Address
 			if len(from) > 0 {
 				fm = from[0]
 			} else {
