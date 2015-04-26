@@ -33,7 +33,14 @@ var domains = map[string]struct{}{
 	"lavaboom.co":  struct{}{},
 }
 
+var (
+	cfg     *shared.Flags
+	session *gorethink.Session
+)
+
 func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelope) error {
+	cfg = config
+
 	// Initialize a new logger
 	log := logrus.New()
 	if config.LogFormatterType == "text" {
@@ -47,7 +54,8 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 	log.Level = logrus.DebugLevel
 
 	// Initialize the database connection
-	session, err := gorethink.Connect(gorethink.ConnectOpts{
+	var err error
+	session, err = gorethink.Connect(gorethink.ConnectOpts{
 		Address: config.RethinkAddress,
 		AuthKey: config.RethinkKey,
 		MaxIdle: 10,
@@ -142,47 +150,12 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 		// Fetch users' public keys
 		for _, account := range accounts {
-			if account.PublicKey != "" {
-				cursor, err := gorethink.Db(config.RethinkDatabase).Table("keys").Get(account.PublicKey).Run(session)
-				if err != nil {
-					return err
-				}
-
-				var key *models.Key
-				if err := cursor.One(&key); err != nil {
-					return err
-				}
-
-				keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(key.Key))
-				if err != nil {
-					return err
-				}
-
-				account.Key = keyring[0]
-				toKeyring = append(toKeyring, account.Key)
-			} else {
-				cursor, err := gorethink.Db(config.RethinkDatabase).Table("keys").GetAllByIndex("owner", account.ID).Run(session)
-				if err != nil {
-					return err
-				}
-
-				var keys []*models.Key
-				if err := cursor.All(&keys); err != nil {
-					return err
-				}
-
-				if len(keys) == 0 {
-					return fmt.Errorf("Recipient has no public key")
-				}
-
-				keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(keys[0].Key))
-				if err != nil {
-					return err
-				}
-
-				account.Key = keyring[0]
-				toKeyring = append(toKeyring, account.Key)
+			account.Key, err = getAccountPublicKey(account)
+			if err != nil {
+				return err
 			}
+
+			toKeyring = append(toKeyring, account.Key)
 		}
 
 		log.Debug("Fetched keys")
@@ -454,7 +427,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			subject = "Encrypted message (" + emailID + ")"
 
 			s2 := email.Headers.Get("subject")
-			if s2[0] == '=' && s2[1] == '?' {
+			if len(s2) > 1 && s2[0] == '=' && s2[1] == '?' {
 				s2, _, err = quotedprintable.DecodeHeader(s2)
 				if err != nil {
 					return err
@@ -898,4 +871,45 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 		return nil
 	}
+}
+
+func getAccountPublicKey(account *models.Account) (*openpgp.Entity, error) {
+	if account.PublicKey != "" {
+		cursor, err := gorethink.Db(cfg.RethinkDatabase).Table("keys").Get(account.PublicKey).Run(session)
+		if err != nil {
+			return nil, err
+		}
+
+		var key *models.Key
+		if err := cursor.One(&key); err != nil {
+			return nil, err
+		}
+
+		keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(key.Key))
+		if err != nil {
+			return nil, err
+		}
+
+		return keyring[0], nil
+	}
+	cursor, err := gorethink.Db(cfg.RethinkDatabase).Table("keys").GetAllByIndex("owner", account.ID).Run(session)
+	if err != nil {
+		return nil, err
+	}
+
+	var keys []*models.Key
+	if err := cursor.All(&keys); err != nil {
+		return nil, err
+	}
+
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("Recipient has no public key")
+	}
+
+	keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(keys[0].Key))
+	if err != nil {
+		return nil, err
+	}
+
+	return keyring[0], nil
 }
