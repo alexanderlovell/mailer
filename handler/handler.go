@@ -434,9 +434,15 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				}
 			}
 
+			var fm string
+			if len(from) > 0 {
+				fm = from[0]
+			} else {
+				fm = "no from header"
+			}
 			rawManifest := &man.Manifest{
 				Version: semver.Version{1, 0, 0, nil, nil},
-				From:    from[0],
+				From:    fm,
 				To:      to,
 				CC:      cc,
 				Subject: s2,
