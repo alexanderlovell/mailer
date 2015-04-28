@@ -1,3 +1,5 @@
+#!/bin/bash
+
 echo ">> starting postfix"
 service postfix start
 
