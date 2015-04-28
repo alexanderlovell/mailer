@@ -11,4 +11,3 @@ ADD startup.sh /opt/startup.sh
 RUN chmod a+x /opt/startup.sh
 
 ENTRYPOINT ["/opt/startup.sh"]
-CMD ["-h"]
