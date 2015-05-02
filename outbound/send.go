@@ -190,13 +190,6 @@ func StartQueue(config *shared.Flags) {
 		contents := ""
 
 		ctxFrom := email.From
-		if v1, ok := account.Settings.(map[string]interface{}); ok {
-			if v2, ok := v1["displayName"]; ok {
-				if v3, ok := v2.(string); ok {
-					ctxFrom = v3 + " <" + ctxFrom + ">"
-				}
-			}
-		}
 
 		if email.Kind == "raw" {
 			// Encode the email
