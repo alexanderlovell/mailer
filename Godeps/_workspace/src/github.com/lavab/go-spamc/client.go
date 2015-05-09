@@ -155,7 +155,7 @@ func (s *Client) Process(msgpars ...string) (reply *SpamDOut, err error) {
 	return s.simpleCall(PROCESS, msgpars)
 }
 
-//Same as PROCESS, but return only modified headers, not body (new in protocol 1.4) 
+//Same as PROCESS, but return only modified headers, not body (new in protocol 1.4)
 func (s *Client) Headers(msgpars ...string) (reply *SpamDOut, err error) {
 	return s.simpleCall(HEADERS, msgpars)
 }
@@ -429,7 +429,7 @@ func processResponse(cmd string, data *bufio.Reader) (returnObj *SpamDOut, err e
 					lineStr = string(line)
 
 					//TXT Table found, prepare to parse..
-					if lineStr[0:4] == TABLE_MARK {
+					if len(lineStr) >= 4 && lineStr[0:4] == TABLE_MARK {
 
 						section := []map[string]interface{}{}
 						tt := 0

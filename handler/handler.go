@@ -20,10 +20,10 @@ import (
 	"github.com/dchest/uniuri"
 	"github.com/lavab/api/models"
 	"github.com/lavab/api/utils"
+	"github.com/lavab/go-spamc"
 	"github.com/lavab/mailer/shared"
 	man "github.com/lavab/pgp-manifest-go"
 	"github.com/lavab/smtpd"
-	"github.com/saintienn/go-spamc"
 	"golang.org/x/crypto/openpgp"
 )
 
