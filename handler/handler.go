@@ -606,7 +606,11 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			subjectHash := email.Headers.Get("Subject-Hash")
 			if subjectHash == "" {
 				subject := email.Headers.Get("Subject")
-				if subject[0] == '=' && subject[1] == '?' {
+				if subject == "" {
+					subject = "<no subject>"
+				}
+
+				if len(subject) > 1 && subject[0] == '=' && subject[1] == '?' {
 					subject, _, err = quotedprintable.DecodeHeader(subject)
 					if err != nil {
 						return err
