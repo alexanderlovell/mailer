@@ -565,7 +565,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			}
 		}
 
-		if subject[0] == '=' && subject[1] == '?' {
+		if len(subject) > 1 && subject[0] == '=' && subject[1] == '?' {
 			subject, _, err = quotedprintable.DecodeHeader(subject)
 			if err != nil {
 				return err
