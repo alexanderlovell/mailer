@@ -89,6 +89,8 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		// Check recipients for Lavaboom users
 		recipients := []interface{}{}
 		for _, recipient := range e.Recipients {
+			log.Printf("EMAIL TO %s", recipient)
+
 			// Split the email address into username and domain
 			parts := strings.Split(recipient, "@")
 			if len(parts) != 2 {
@@ -703,7 +705,16 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				cursor, err := gorethink.Db(config.RethinkDatabase).Table("threads").GetAllByIndex("subjectOwner", []interface{}{
 					subjectHash,
 					account.ID,
+				}).Filter(func(row gorethink.Term) gorethink.Term {
+					return row.Field("members").Map(func(member gorethink.Term) gorethink.Term {
+						return member.Match(gorethink.Expr(from)).CoerceTo("string").Ne("null")
+					}).Contains(gorethink.Expr(true))
 				}).Run(session)
+				/*.Filter(func(row gorethink.Term) gorethink.Term {
+					return gorethink.Now().Sub(row.Field("date_modified")).Lt(gorethink.Expr(14*24*60*60)).And(
+						row.Field("members").Contains(gorethink.Expr()),
+					)
+				}).Run(session)*/
 				if err != nil {
 					return err
 				}
