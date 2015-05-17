@@ -17,6 +17,7 @@ type rawSingleContext struct {
 	Subject      string
 	ContentType  string
 	Body         string
+	Date         string
 }
 
 var rawSingleTemplate = template.Must(template.New("rawsingle").Parse(
@@ -31,6 +32,7 @@ References: {{.InReplyTo}}{{end}}
 Content-Type: {{.ContentType}}
 Content-Transfer-Encoding: quoted-printable
 Subject: {{.Subject}}
+Date: {{.Date}}
 
 {{.Body}}
 `))
@@ -50,6 +52,7 @@ type rawMultiContext struct {
 	ContentType  string
 	Body         string
 	Files        []*emailFile
+	Date         string
 }
 
 var rawMultiTemplate = template.Must(template.New("rawmulti").Parse(
@@ -63,6 +66,7 @@ In-Reply-To: {{.InReplyTo}}
 References: {{.InReplyTo}}{{end}}
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
+Date: {{.Date}}
 
 --{{.Boundary1}}
 Content-Type: {{.ContentType}}
@@ -94,6 +98,7 @@ type pgpContext struct {
 	ContentType  string
 	Subject      string
 	Body         string
+	Date         string
 }
 
 var pgpTemplate = template.Must(template.New("rawmulti").Parse(
@@ -107,6 +112,7 @@ In-Reply-To: {{.InReplyTo}}
 References: {{.InReplyTo}}{{end}}
 Content-Type: {{.ContentType}}
 Subject: {{.Subject}}
+Date: {{.Date}}
 
 {{.Body}}
 `))
@@ -128,6 +134,7 @@ type manifestSingleContext struct {
 	Body         string
 	ID           string
 	Manifest     string
+	Date         string
 }
 
 var manifestSingleTemplate = template.Must(template.New("mansingle").Parse(
@@ -142,6 +149,7 @@ References: {{.InReplyTo}}{{end}}
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 Subject-Hash: {{.SubjectHash}}
+Date: {{.Date}}
 
 --{{.Boundary1}}
 Content-Type: multipart/alternative; boundary="{{.Boundary2}}"
@@ -194,6 +202,7 @@ type manifestMultiContext struct {
 	ID           string
 	Files        []*emailFile
 	Manifest     string
+	Date         string
 }
 
 var manifestMultiTemplate = template.Must(template.New("manmulti").Parse(
@@ -208,6 +217,7 @@ References: {{.InReplyTo}}{{end}}
 Content-Type: multipart/mixed; boundary="{{.Boundary1}}"
 Subject: {{.Subject}}
 Subject-Hash: {{.SubjectHash}}
+Date: {{.Date}}
 
 --{{.Boundary1}}
 Content-Type: multipart/alternative; boundary="{{.Boundary2}}"

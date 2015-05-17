@@ -205,6 +205,7 @@ func StartQueue(config *shared.Flags) {
 					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
 					ContentType:  email.ContentType,
 					Body:         quotedprintable.EncodeToString([]byte(email.Body)),
+					Date:         email.DateCreated.Format(time.RubyDate),
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -245,6 +246,7 @@ func StartQueue(config *shared.Flags) {
 					ContentType:  email.ContentType,
 					Body:         quotedprintable.EncodeToString([]byte(email.Body)),
 					Files:        emailFiles,
+					Date:         email.DateCreated.Format(time.RubyDate),
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -444,6 +446,7 @@ func StartQueue(config *shared.Flags) {
 				Subject:      email.Name,
 				ContentType:  email.ContentType,
 				Body:         email.Body,
+				Date:         email.DateCreated.Format(time.RubyDate),
 			}
 
 			if email.CC != nil && len(email.CC) > 0 {
@@ -478,6 +481,7 @@ func StartQueue(config *shared.Flags) {
 					Body:         email.Body,
 					Manifest:     email.Manifest,
 					SubjectHash:  thread.SubjectHash,
+					Date:         email.DateCreated.Format(time.RubyDate),
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
@@ -521,6 +525,7 @@ func StartQueue(config *shared.Flags) {
 					Manifest:     email.Manifest,
 					SubjectHash:  thread.SubjectHash,
 					Files:        emailFiles,
+					Date:         email.DateCreated.Format(time.RubyDate),
 				}
 
 				if email.CC != nil && len(email.CC) > 0 {
