@@ -384,7 +384,7 @@ func StartQueue(config *shared.Flags) {
 				})
 
 				// Replace the file in database
-				_, err = gorethink.Db(config.RethinkDatabase).Table("files").Get(file.ID).Replace(&models.File{
+				err = gorethink.Db(config.RethinkDatabase).Table("files").Get(file.ID).Replace(&models.File{
 					Resource: models.Resource{
 						ID:           file.ID,
 						DateCreated:  file.DateCreated,
@@ -396,7 +396,7 @@ func StartQueue(config *shared.Flags) {
 						Encoding: "application/pgp-encrypted",
 						Data:     string(cipher),
 					},
-				}).Run(session)
+				}).Exec(session)
 				if err != nil {
 					return err
 				}
@@ -412,7 +412,7 @@ func StartQueue(config *shared.Flags) {
 				return err
 			}
 
-			_, err = gorethink.Db(config.RethinkDatabase).Table("emails").Get(email.ID).Replace(&models.Email{
+			err = gorethink.Db(config.RethinkDatabase).Table("emails").Get(email.ID).Replace(&models.Email{
 				Resource: models.Resource{
 					ID:           email.ID,
 					DateCreated:  email.DateCreated,
@@ -429,8 +429,7 @@ func StartQueue(config *shared.Flags) {
 				Manifest: string(encryptedManifest),
 				Body:     string(encryptedBody),
 				Thread:   email.Thread,
-				Status:   "sent",
-			}).Run(session)
+			}).Exec(session)
 			if err != nil {
 				return err
 			}
@@ -585,13 +584,20 @@ func StartQueue(config *shared.Flags) {
 				}).Error("Unable to publish a bounce msg")
 			}
 		} else {
-
 			err := producer.Publish("email_delivery", nsqmsg)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"error": err,
 				}).Error("Unable to publish a bounce msg")
 			}
+		}
+		err = gorethink.Db(config.RethinkDatabase).Table("emails").Get(email.ID).Update(map[string]interface{}{
+			"status": "sent",
+		}).Exec(session)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"error": err,
+			}).Error("Unable to mark an email as sent")
 		}
 
 		msg.Finish()
