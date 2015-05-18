@@ -604,6 +604,20 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				return err
 			}
 
+			// Find user's Trash label
+			cursor, err = gorethink.Db(config.RethinkDatabase).Table("labels").Filter(map[string]interface{}{
+				"owner":   account.ID,
+				"name":    "Trash",
+				"builtin": true,
+			}).Run(session)
+			if err != nil {
+				return err
+			}
+			var trash *models.Label
+			if err := cursor.One(&trash); err != nil {
+				return err
+			}
+
 			// Get the subject's hash
 			subjectHash := email.Headers.Get("Subject-Hash")
 			if subjectHash == "" {
@@ -708,7 +722,13 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				}).Filter(func(row gorethink.Term) gorethink.Term {
 					return row.Field("members").Map(func(member gorethink.Term) gorethink.Term {
 						return member.Match(gorethink.Expr(from)).CoerceTo("string").Ne("null")
-					}).Contains(gorethink.Expr(true))
+					}).Contains(gorethink.Expr(true)).And(
+						gorethink.Not(
+							row.Field("labels").Contains(spam.ID).Or(
+								row.Field("labels").Contains(trash.ID),
+							),
+						),
+					)
 				}).Run(session)
 				/*.Filter(func(row gorethink.Term) gorethink.Term {
 					return gorethink.Now().Sub(row.Field("date_modified")).Lt(gorethink.Expr(14*24*60*60)).And(
