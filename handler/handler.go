@@ -576,47 +576,30 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 		// Save the email for each recipient
 		for _, account := range accounts {
-			// Find user's Inbox label
-			cursor, err := gorethink.Db(config.RethinkDatabase).Table("labels").Filter(map[string]interface{}{
-				"owner":   account.ID,
-				"name":    "Inbox",
-				"builtin": true,
-			}).Run(session)
-			if err != nil {
-				return err
-			}
-			var inbox *models.Label
-			if err := cursor.One(&inbox); err != nil {
-				return err
-			}
-
-			// Find user's Spam label
-			cursor, err = gorethink.Db(config.RethinkDatabase).Table("labels").Filter(map[string]interface{}{
-				"owner":   account.ID,
-				"name":    "Spam",
-				"builtin": true,
-			}).Run(session)
-			if err != nil {
-				return err
-			}
-			var spam *models.Label
-			if err := cursor.One(&spam); err != nil {
+			// Get 3 user's labels
+			cursor, err := gorethink.Db(config.RethinkDatabase).Table("labels").GetAllByIndex("index", []interface{}{
+				"Inbox",
+				account.ID,
+				true,
+			}, []interface{}{
+				"Spam",
+				account.ID,
+				true,
+			}, []interface{}{
+				"Trash",
+				account.ID,
+				true,
+			}, []interface{}{}).Run(session)
+			var labels []*models.Label
+			if err := cursor.All(&labels); err != nil {
 				return err
 			}
 
-			// Find user's Trash label
-			cursor, err = gorethink.Db(config.RethinkDatabase).Table("labels").Filter(map[string]interface{}{
-				"owner":   account.ID,
-				"name":    "Trash",
-				"builtin": true,
-			}).Run(session)
-			if err != nil {
-				return err
-			}
-			var trash *models.Label
-			if err := cursor.One(&trash); err != nil {
-				return err
-			}
+			var (
+				inbox = labels[0]
+				spam  = labels[1]
+				trash = labels[2]
+			)
 
 			// Get the subject's hash
 			subjectHash := email.Headers.Get("Subject-Hash")
