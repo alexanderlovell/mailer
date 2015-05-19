@@ -577,7 +577,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		// Save the email for each recipient
 		for _, account := range accounts {
 			// Get 3 user's labels
-			cursor, err := gorethink.Db(config.RethinkDatabase).Table("labels").GetAllByIndex("index", []interface{}{
+			cursor, err := gorethink.Db(config.RethinkDatabase).Table("labels").GetAllByIndex("nameOwnerBuiltin", []interface{}{
 				"Inbox",
 				account.ID,
 				true,
