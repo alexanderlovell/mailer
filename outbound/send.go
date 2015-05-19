@@ -44,6 +44,9 @@ func StartQueue(config *shared.Flags) {
 
 	log.Level = logrus.DebugLevel
 
+	// Create a new header encoder
+	he := quotedprintable.Q.NewHeaderEncoder("utf-8")
+
 	// Initialize the database connection
 	session, err := gorethink.Connect(gorethink.ConnectOpts{
 		Address: config.RethinkAddress,
@@ -191,6 +194,11 @@ func StartQueue(config *shared.Flags) {
 
 		ctxFrom := email.From
 
+		// Check if charset is set
+		if !strings.Contains(email.ContentType, "; charset=") {
+			email.ContentType += "; charset=utf-8"
+		}
+
 		if email.Kind == "raw" {
 			// Encode the email
 			if files == nil || len(files) == 0 {
@@ -202,7 +210,7 @@ func StartQueue(config *shared.Flags) {
 					MessageID:    messageID,
 					HasInReplyTo: hasInReplyTo,
 					InReplyTo:    inReplyTo,
-					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					Subject:      he.Encode(email.Name),
 					ContentType:  email.ContentType,
 					Body:         quotedprintable.EncodeToString([]byte(email.Body)),
 					Date:         email.DateCreated.Format(time.RubyDate),
@@ -242,7 +250,7 @@ func StartQueue(config *shared.Flags) {
 					HasInReplyTo: hasInReplyTo,
 					InReplyTo:    inReplyTo,
 					Boundary1:    uniuri.NewLen(20),
-					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					Subject:      he.Encode(email.Name),
 					ContentType:  email.ContentType,
 					Body:         quotedprintable.EncodeToString([]byte(email.Body)),
 					Files:        emailFiles,
@@ -327,7 +335,7 @@ func StartQueue(config *shared.Flags) {
 				Version: semver.Version{1, 0, 0, nil, nil},
 				From:    fromAddr,
 				To:      toAddr,
-				Subject: email.Name,
+				Subject: he.Encode(email.Name),
 				Parts:   []*man.Part{},
 			}
 
@@ -473,7 +481,7 @@ func StartQueue(config *shared.Flags) {
 					MessageID:    messageID,
 					HasInReplyTo: hasInReplyTo,
 					InReplyTo:    inReplyTo,
-					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					Subject:      he.Encode(email.Name),
 					Boundary1:    uniuri.NewLen(20),
 					Boundary2:    uniuri.NewLen(20),
 					ID:           email.ID,
@@ -516,7 +524,7 @@ func StartQueue(config *shared.Flags) {
 					MessageID:    messageID,
 					HasInReplyTo: hasInReplyTo,
 					InReplyTo:    inReplyTo,
-					Subject:      quotedprintable.EncodeToString([]byte(email.Name)),
+					Subject:      he.Encode(email.Name),
 					Boundary1:    uniuri.NewLen(20),
 					Boundary2:    uniuri.NewLen(20),
 					ID:           email.ID,
