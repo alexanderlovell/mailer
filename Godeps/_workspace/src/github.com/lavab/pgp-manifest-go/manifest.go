@@ -14,8 +14,8 @@ type Manifest struct {
 	Subject     string          `json:"-"`
 	ContentType string          `json:"-"`
 
-	Headers map[string]string `json:"headers"`
-	Parts   []*Part           `json:"parts,omitempty"`
+	Headers map[string]interface{} `json:"headers"`
+	Parts   []*Part                `json:"parts,omitempty"`
 }
 
 type Part struct {

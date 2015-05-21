@@ -24,6 +24,7 @@ import (
 	"github.com/lavab/mailer/shared"
 	man "github.com/lavab/pgp-manifest-go"
 	"github.com/lavab/smtpd"
+	"github.com/lavab/webhook/events"
 	"golang.org/x/crypto/openpgp"
 )
 
@@ -886,8 +887,21 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			}
 
 			// Notify the cluster
-			err = producer.Publish("email_receipt", notification)
+			if err := producer.Publish("email_receipt", notification); err != nil {
+				return err
+			}
+
+			// Trigger the hooks
+			hook, err := json.Marshal(&events.Incoming{
+				Email:   eid,
+				Account: account.ID,
+			})
 			if err != nil {
+				return err
+			}
+
+			// Push it to nsq
+			if err = producer.Publish("hook_incoming", hook); err != nil {
 				return err
 			}
 

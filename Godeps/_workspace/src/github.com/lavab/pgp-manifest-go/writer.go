@@ -15,10 +15,10 @@ func clearAddress(input string) string {
 
 func Write(input *Manifest) ([]byte, error) {
 	if input.Headers == nil {
-		input.Headers = map[string]string{}
+		input.Headers = map[string]interface{}{}
 	} else {
 		for key, value := range input.Headers {
-			input.Headers[key] = strings.ToLower(value)
+			input.Headers[strings.ToLower(key)] = value
 		}
 	}
 
@@ -32,7 +32,7 @@ func Write(input *Manifest) ([]byte, error) {
 			to = append(to, clearAddress(addr.Name+" <"+addr.Address+">"))
 		}
 
-		input.Headers["to"] = strings.Join(to, ", ")
+		input.Headers["to"] = to
 	}
 
 	if input.CC != nil {
@@ -41,7 +41,7 @@ func Write(input *Manifest) ([]byte, error) {
 			cc = append(cc, clearAddress(addr.Name+" <"+addr.Address+">"))
 		}
 
-		input.Headers["cc"] = strings.Join(cc, ", ")
+		input.Headers["cc"] = cc
 	}
 
 	if input.Subject != "" {
