@@ -258,6 +258,12 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						}
 					}
 
+					if preferredIndex == -1 && len(msg.Children) > 0 {
+						preferredIndex = 0
+					} else if preferredIndex == -1 {
+						return nil // crappy email
+					}
+
 					// Parse its media type to remove non-required stuff
 					match := msg.Children[preferredIndex]
 					mediaType, _, err := mime.ParseMediaType(match.Headers.Get("Content-Type"))
