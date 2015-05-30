@@ -96,7 +96,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			// Split the email address into username and domain
 			parts := strings.Split(recipient, "@")
 			if len(parts) != 2 {
-				return fmt.Errorf("Invalid recipient email address")
+				return describeError(fmt.Errorf("Invalid recipient email address"))
 			}
 
 			// Check if we support that domain
@@ -113,17 +113,17 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 		// If we didn't find a recipient, return an error
 		if len(recipients) == 0 {
-			return fmt.Errorf("Not supported email domain")
+			return describeError(fmt.Errorf("Not supported email domain"))
 		}
 
 		// Fetch the mapping
 		cursor, err := gorethink.Db(config.RethinkDatabase).Table("addresses").GetAll(recipients...).Run(session)
 		if err != nil {
-			return err
+			return describeError(err)
 		}
 		var addresses []*models.Address
 		if err := cursor.All(&addresses); err != nil {
-			return err
+			return describeError(err)
 		}
 
 		// Transform the mapping into accounts
@@ -135,16 +135,16 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		// Fetch accounts
 		cursor, err = gorethink.Db(config.RethinkDatabase).Table("accounts").GetAll(accountIDs...).Run(session)
 		if err != nil {
-			return err
+			return describeError(err)
 		}
 		var accounts []*models.Account
 		if err := cursor.All(&accounts); err != nil {
-			return err
+			return describeError(err)
 		}
 
 		// Compare request and result lengths
 		if len(accounts) != len(recipients) {
-			return fmt.Errorf("One of the email addresses wasn't found")
+			return describeError(fmt.Errorf("One of the email addresses wasn't found"))
 		}
 
 		log.Debug("Recipients found")
@@ -156,7 +156,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		for _, account := range accounts {
 			account.Key, err = getAccountPublicKey(account)
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 
 			toKeyring = append(toKeyring, account.Key)
@@ -183,7 +183,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		// Parse the email
 		email, err := ParseEmail(bytes.NewReader(e.Data))
 		if err != nil {
-			return err
+			return describeError(err)
 		}
 
 		// Determine email's kind
@@ -269,7 +269,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					match := msg.Children[preferredIndex]
 					mediaType, _, err := mime.ParseMediaType(match.Headers.Get("Content-Type"))
 					if err != nil {
-						return err
+						return describeError(err)
 					}
 
 					// Push contents into the parser's scope
@@ -286,14 +286,14 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					// Tread every other multipart as multipart/mixed, as we parse multipart/encrypted later
 					for _, child := range msg.Children {
 						if err := parseBody(child); err != nil {
-							return err
+							return describeError(err)
 						}
 					}
 				} else {
 					// Parse the content type
 					mediaType, _, err := mime.ParseMediaType(contentType)
 					if err != nil {
-						return err
+						return describeError(err)
 					}
 
 					// Not multipart, parse the disposition
@@ -306,7 +306,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						// Encrypt the body
 						encryptedBody, err := shared.EncryptAndArmor(msg.Body, toKeyring)
 						if err != nil {
-							return err
+							return describeError(err)
 						}
 
 						// Hash the body
@@ -414,7 +414,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			for _, file := range files {
 				_, err := gorethink.Db(config.RethinkDatabase).Table("files").Insert(file).Run(session)
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 			}
 
@@ -440,7 +440,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			if len(s2) > 1 && s2[0] == '=' && s2[1] == '?' {
 				s2, _, err = quotedprintable.DecodeHeader(s2)
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 			}
 
@@ -465,15 +465,15 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			// Encrypt the manifest and the body
 			encryptedBody, err := shared.EncryptAndArmor([]byte(bodyText), toKeyring)
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 			strManifest, err := man.Write(rawManifest)
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 			encryptedManifest, err := shared.EncryptAndArmor(strManifest, toKeyring)
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 
 			body = string(encryptedBody)
@@ -503,7 +503,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 			// Check that we found both parts
 			if manifestIndex == -1 || bodyIndex == -1 {
-				return fmt.Errorf("Invalid PGP/Manifest email")
+				return describeError(fmt.Errorf("Invalid PGP/Manifest email"))
 			}
 
 			// Search for the body child index
@@ -519,7 +519,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 			// Check that we found it
 			if bodyChildIndex == -1 {
-				return fmt.Errorf("Invalid PGP/Manifest email body")
+				return describeError(fmt.Errorf("Invalid PGP/Manifest email body"))
 			}
 
 			// Find the manifest and the body
@@ -535,7 +535,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 				_, cdparams, err := mime.ParseMediaType(child.Headers.Get("Content-Disposition"))
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 
 				for _, account := range accounts {
@@ -555,7 +555,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						},
 					}).Run(session)
 					if err != nil {
-						return err
+						return describeError(err)
 					}
 
 					if _, ok := fileIDs[account.ID]; !ok {
@@ -578,7 +578,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 		if len(subject) > 1 && subject[0] == '=' && subject[1] == '?' {
 			subject, _, err = quotedprintable.DecodeHeader(subject)
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 		}
 
@@ -600,7 +600,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			}, []interface{}{}).Run(session)
 			var labels []*models.Label
 			if err := cursor.All(&labels); err != nil {
-				return err
+				return describeError(err)
 			}
 
 			var (
@@ -620,7 +620,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				if len(subject) > 1 && subject[0] == '=' && subject[1] == '?' {
 					subject, _, err = quotedprintable.DecodeHeader(subject)
 					if err != nil {
-						return err
+						return describeError(err)
 					}
 				}
 
@@ -686,21 +686,21 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					account.ID,
 				}).Run(session)
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 				var emails []*models.Email
 				if err := cursor.All(&emails); err != nil {
-					return err
+					return describeError(err)
 				}
 
 				// Found one = that one is correct
 				if len(emails) == 1 {
 					cursor, err := gorethink.Db(config.RethinkDatabase).Table("threads").Get(emails[0].ID).Run(session)
 					if err != nil {
-						return err
+						return describeError(err)
 					}
 					if err := cursor.One(&thread); err != nil {
-						return err
+						return describeError(err)
 					}
 				}
 			}
@@ -727,11 +727,11 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					)
 				}).Run(session)*/
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 				var threads []*models.Thread
 				if err := cursor.All(&threads); err != nil {
-					return err
+					return describeError(err)
 				}
 
 				if len(threads) > 0 {
@@ -770,7 +770,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Insert(thread).Run(session)
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 			} else {
 				var desiredID string
@@ -809,7 +809,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 
 				_, err := gorethink.Db(config.RethinkDatabase).Table("threads").Get(thread.ID).Update(update).Run(session)
 				if err != nil {
-					return err
+					return describeError(err)
 				}
 			}
 
@@ -881,7 +881,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 			// Insert the email
 			_, err = gorethink.Db(config.RethinkDatabase).Table("emails").Insert(es).Run(session)
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 
 			// Prepare a notification message
@@ -890,12 +890,12 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				"owner": account.ID,
 			})
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 
 			// Notify the cluster
 			if err := producer.Publish("email_receipt", notification); err != nil {
-				return err
+				return describeError(err)
 			}
 
 			// Trigger the hooks
@@ -904,12 +904,12 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 				Account: account.ID,
 			})
 			if err != nil {
-				return err
+				return describeError(err)
 			}
 
 			// Push it to nsq
 			if err = producer.Publish("hook_incoming", hook); err != nil {
-				return err
+				return describeError(err)
 			}
 
 			log.WithFields(logrus.Fields{
