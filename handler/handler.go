@@ -745,11 +745,9 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 					secure = "none"
 				}
 
-				var label string
+				labels := []string{inbox.ID}
 				if isSpam {
-					label = spam.ID
-				} else {
-					label = inbox.ID
+					labels = append(labels, spam.ID)
 				}
 
 				thread = &models.Thread{
@@ -761,7 +759,7 @@ func PrepareHandler(config *shared.Flags) func(peer smtpd.Peer, env smtpd.Envelo
 						Owner:        account.ID,
 					},
 					Emails:      []string{eid},
-					Labels:      []string{label},
+					Labels:      labels,
 					Members:     append(append(to, cc...), from),
 					IsRead:      false,
 					SubjectHash: subjectHash,
